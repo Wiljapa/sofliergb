@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: MIT
+
+description: Troca o estilo da animacao do OLED (Equalizador, Anel, Estrela, Nenhuma)
+
+compatible: "sofle,behavior-oled-anim"
+
+include: zero_param.yaml

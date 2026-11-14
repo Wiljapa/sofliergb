@@ -70,7 +70,11 @@ struct screen_state {
     bool connected;
 #endif
     char layer[5];
+    uint8_t anim;  /* estilo da animacao (enum sofle_anim) */
+    uint32_t keys; /* contador de teclas apertadas: muda => dispara a animacao */
 };
+
+static uint32_t key_counter;
 
 static void draw_text(lv_layer_t *layer, const char *txt, int x, int y, int w, lv_color_t color) {
     lv_draw_label_dsc_t d;
@@ -167,17 +171,235 @@ static void draw_battery_icon(lv_layer_t *layer, int x, int y, uint8_t level) {
     }
 }
 
-static void draw_mods(lv_layer_t *layer, uint8_t mask_state, int y0, int step, int h) {
-    static const struct {
-        const char *name;
-        uint8_t mask;
-    } mods[] = {{"CTL", 0x11}, {"SFT", 0x22}, {"ALT", 0x44}, {"GUI", 0x88}};
-    for (int i = 0; i < 4; i++) {
-        bool on = (mask_state & mods[i].mask) != 0;
-        int y = y0 + i * step;
-        draw_box(layer, 1, y, PW - 2, h, on);
-        draw_text(layer, mods[i].name, 1, y + (h - 8) / 2, PW - 2,
-                  on ? lv_color_black() : lv_color_white());
+/* Rotulo da 2a caixa: qual entre Ctrl, Shift e Alt esta apertado (esquerdo ou direito). */
+static void mods_label(uint8_t mods, char *out) {
+    bool c = (mods & 0x11) != 0, sh = (mods & 0x22) != 0, a = (mods & 0x44) != 0;
+    int n = c + sh + a;
+    if (n == 0) {
+        strcpy(out, "---");
+    } else if (n == 3) {
+        strcpy(out, "CSA");
+    } else if (n == 1) {
+        strcpy(out, c ? "CTL" : (sh ? "SFT" : "ALT"));
+    } else {
+        /* duas teclas: iniciais, ex. "C+S" */
+        char first = c ? 'C' : 'S';
+        char second = (c && sh) ? 'S' : 'A';
+        out[0] = first;
+        out[1] = '+';
+        out[2] = second;
+        out[3] = '\0';
+    }
+}
+
+/* Duas caixas: GUI sozinho e uma que mostra CTL, SFT ou ALT. */
+static void draw_mod_boxes(lv_layer_t *layer, uint8_t mods) {
+    bool gui = (mods & 0x88) != 0;
+    draw_box(layer, 1, 65, PW - 2, 13, gui);
+    draw_text(layer, "GUI", 1, 67, PW - 2, gui ? lv_color_black() : lv_color_white());
+
+    char lbl[4];
+    mods_label(mods, lbl);
+    bool other = (mods & 0x77) != 0;
+    draw_box(layer, 1, 81, PW - 2, 13, other);
+    draw_text(layer, lbl, 1, 83, PW - 2, other ? lv_color_black() : lv_color_white());
+}
+
+/* ------------------------------------------------------------------------------------
+ * Animacao na janela de baixo (32 x 30 px, y de 97 a 126). So existe enquanto roda:
+ * cada tecla comum cria o efeito, um temporizador do LVGL avanca os quadros (15 por segundo)
+ * e para sozinho quando nada esta vivo, entao parado nao gasta nada.
+ * ------------------------------------------------------------------------------------ */
+#define ANIM_Y0 97
+#define ANIM_H 30
+#define ANIM_CX 16
+#define ANIM_CY 15
+#define ANIM_MAX_ITEMS 4
+
+struct anim_item {
+    bool used;
+    uint8_t t;
+    uint8_t rot;
+};
+
+static uint8_t anim_style = SOFLE_ANIM_EQ;
+static int bars[8];
+static struct anim_item items[ANIM_MAX_ITEMS];
+static lv_timer_t *anim_timer;
+static struct screen_state last_state;
+static uint32_t rng_state = 2463534242u;
+
+static void render(struct screen_state s);
+
+static uint32_t rnd(void) {
+    uint32_t x = rng_state;
+    x ^= x << 13;
+    x ^= x >> 17;
+    x ^= x << 5;
+    rng_state = x;
+    return x;
+}
+
+static void wput(int x, int y) {
+    if (x < 0 || x >= PW || y < 0 || y >= ANIM_H) {
+        return;
+    }
+    const uint32_t stride = lv_draw_buf_width_to_stride(PW, LV_COLOR_FORMAT_L8);
+    portrait_buf[(ANIM_Y0 + y) * stride + x] = 255;
+}
+
+static void wcircle(int x0, int y0, int r) {
+    int x = r, y = 0, e = 1 - r;
+    while (x >= y) {
+        wput(x0 + x, y0 + y);
+        wput(x0 + y, y0 + x);
+        wput(x0 - y, y0 + x);
+        wput(x0 - x, y0 + y);
+        wput(x0 - x, y0 - y);
+        wput(x0 - y, y0 - x);
+        wput(x0 + y, y0 - x);
+        wput(x0 + x, y0 - y);
+        y++;
+        if (e < 0) {
+            e += 2 * y + 1;
+        } else {
+            x--;
+            e += 2 * (y - x) + 1;
+        }
+    }
+}
+
+static void wline(int x0, int y0, int x1, int y1) {
+    int dx = x1 > x0 ? x1 - x0 : x0 - x1;
+    int dy = -(y1 > y0 ? y1 - y0 : y0 - y1);
+    int sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1, e = dx + dy;
+    for (;;) {
+        wput(x0, y0);
+        if (x0 == x1 && y0 == y1) {
+            break;
+        }
+        int e2 = 2 * e;
+        if (e2 >= dy) {
+            e += dy;
+            x0 += sx;
+        }
+        if (e2 <= dx) {
+            e += dx;
+            y0 += sy;
+        }
+    }
+}
+
+static bool anim_alive(void) {
+    if (anim_style == SOFLE_ANIM_EQ) {
+        for (int i = 0; i < 8; i++) {
+            if (bars[i] > 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+    for (int i = 0; i < ANIM_MAX_ITEMS; i++) {
+        if (items[i].used) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static void anim_reset(void) {
+    memset(bars, 0, sizeof(bars));
+    memset(items, 0, sizeof(items));
+}
+
+static void anim_spawn(void) {
+    if (anim_style == SOFLE_ANIM_NONE) {
+        return;
+    }
+    if (anim_style == SOFLE_ANIM_EQ) {
+        int b = rnd() % 8;
+        bars[b] = MIN(28, bars[b] + 10 + (int)(rnd() % 10));
+        if (b > 0) {
+            bars[b - 1] = MIN(28, bars[b - 1] + 4);
+        }
+        if (b < 7) {
+            bars[b + 1] = MIN(28, bars[b + 1] + 4);
+        }
+    } else {
+        int slot = 0;
+        for (int i = 0; i < ANIM_MAX_ITEMS; i++) {
+            if (!items[i].used) {
+                slot = i;
+                break;
+            }
+            if (items[i].t > items[slot].t) {
+                slot = i;
+            }
+        }
+        items[slot].used = true;
+        items[slot].t = 0;
+        items[slot].rot = rnd() & 1;
+    }
+    if (anim_timer != NULL) {
+        lv_timer_resume(anim_timer);
+    }
+}
+
+static void anim_step(void) {
+    if (anim_style == SOFLE_ANIM_EQ) {
+        for (int i = 0; i < 8; i++) {
+            bars[i] = MAX(0, bars[i] - 2);
+        }
+        return;
+    }
+    const uint8_t life = (anim_style == SOFLE_ANIM_RING) ? 6 : 8;
+    for (int i = 0; i < ANIM_MAX_ITEMS; i++) {
+        if (items[i].used && ++items[i].t >= life) {
+            items[i].used = false;
+        }
+    }
+}
+
+/* Direcoes dos 8 raios da estrela (x100), sem rotacao e girada 22,5 graus. */
+static const int8_t star_dir[2][8][2] = {
+    {{100, 0}, {71, 71}, {0, 100}, {-71, 71}, {-100, 0}, {-71, -71}, {0, -100}, {71, -71}},
+    {{92, 38}, {38, 92}, {-38, 92}, {-92, 38}, {-92, -38}, {-38, -92}, {38, -92}, {92, -38}},
+};
+
+static void anim_draw(void) {
+    if (anim_style == SOFLE_ANIM_EQ) {
+        for (int i = 0; i < 8; i++) {
+            for (int y = ANIM_H - bars[i]; y < ANIM_H; y++) {
+                for (int x = i * 4; x < i * 4 + 3; x++) {
+                    wput(x, y);
+                }
+            }
+        }
+        return;
+    }
+    for (int i = 0; i < ANIM_MAX_ITEMS; i++) {
+        if (!items[i].used) {
+            continue;
+        }
+        int t = items[i].t;
+        if (anim_style == SOFLE_ANIM_RING) {
+            wcircle(ANIM_CX, ANIM_CY, 2 + (t * 23) / 10);
+        } else if (anim_style == SOFLE_ANIM_STAR) {
+            int len = t < 4 ? 2 + t * 3 : 14 - ((t - 4) * 7) / 2;
+            for (int k = 0; k < 8; k++) {
+                int dx = star_dir[items[i].rot][k][0], dy = star_dir[items[i].rot][k][1];
+                wline(ANIM_CX + (dx * 2) / 100, ANIM_CY + (dy * 2) / 100, ANIM_CX + (dx * len) / 100,
+                      ANIM_CY + (dy * len) / 100);
+            }
+        }
+    }
+}
+
+static void anim_timer_cb(lv_timer_t *timer) {
+    anim_step();
+    render(last_state);
+    if (!anim_alive()) {
+        lv_timer_pause(timer);
     }
 }
 
@@ -214,9 +436,10 @@ static void render(struct screen_state s) {
 
     draw_text(&layer, s.layer, 0, 49, PW, lv_color_white());
     draw_box(&layer, 0, 60, PW, 1, true);
-    draw_mods(&layer, s.mods, 65, 16, 13);
+    draw_mod_boxes(&layer, s.mods);
 
     lv_canvas_finish_layer(portrait_canvas, &layer);
+    anim_draw();
     rotate_to_landscape();
     lv_obj_invalidate(landscape_canvas);
 }
@@ -227,6 +450,7 @@ static void render(struct screen_state s) {
 static uint8_t periph_mods;
 static uint8_t remote_layer = 0xFF; /* vem do central pelo relay; 0xFF = ainda desconhecida */
 static uint8_t remote_mods;
+static uint8_t remote_anim = SOFLE_ANIM_EQ;
 
 static void layer_label(char *out, uint8_t idx) {
     static const char *const names[] = {"BASE", "LOWE", "RAIS", "ADJU"};
@@ -248,7 +472,11 @@ static void periph_track(const zmk_event_t *eh) {
     case 57: bit = 0x10; break; /* RCTRL  */
     case 58: bit = 0x40; break; /* RALT   */
     case 59: bit = 0x80; break; /* RGUI   */
-    default: return;
+    default:
+        if (pev->state) {
+            key_counter++; /* tecla comum apertada neste lado: dispara a animacao */
+        }
+        return;
     }
     periph_mods = pev->state ? (periph_mods | bit) : (periph_mods & ~bit);
 }
@@ -268,8 +496,10 @@ static struct screen_state get_state(const zmk_event_t *eh) {
     if (sev != NULL && sev->source != ZMK_RELAY_EVENT_SOURCE_SELF) {
         remote_layer = sev->layer;
         remote_mods = sev->mods;
+        remote_anim = sev->anim;
     }
     s.mods = periph_mods | remote_mods;
+    s.anim = remote_anim;
     s.link = zmk_split_bt_peripheral_is_connected();
     if (remote_layer == 0xFF) {
         strcpy(s.layer, "----");
@@ -297,19 +527,42 @@ static struct screen_state get_state(const zmk_event_t *eh) {
     s.mods = zmk_hid_get_keyboard_report()->body.modifiers;
     /* O HID pode ainda nao ter processado este evento: aplica a mudanca na mao. */
     const struct zmk_keycode_state_changed *kev = as_zmk_keycode_state_changed(eh);
-    if (kev != NULL && kev->usage_page == HID_USAGE_KEY && kev->keycode >= 0xE0 &&
-        kev->keycode <= 0xE7) {
-        uint8_t bit = BIT(kev->keycode - 0xE0);
-        s.mods = kev->state ? (s.mods | bit) : (s.mods & ~bit);
+    if (kev != NULL) {
+        bool is_mod = kev->usage_page == HID_USAGE_KEY && kev->keycode >= 0xE0 && kev->keycode <= 0xE7;
+        if (is_mod) {
+            uint8_t bit = BIT(kev->keycode - 0xE0);
+            s.mods = kev->state ? (s.mods | bit) : (s.mods & ~bit);
+        } else if (kev->state) {
+            key_counter++; /* tecla comum apertada (qualquer metade): dispara a animacao */
+        }
     }
+    s.anim = sofle_anim_style;
 #endif
+    s.keys = key_counter;
     return s;
 }
 
 static void update_cb(struct screen_state s) {
-    if (landscape_canvas != NULL) {
-        render(s);
+    static uint32_t last_keys;
+    static uint8_t last_anim = 0xFF;
+    if (landscape_canvas == NULL) {
+        return;
     }
+    if (s.anim != last_anim) {
+        bool first = (last_anim == 0xFF);
+        last_anim = s.anim;
+        anim_style = s.anim < SOFLE_ANIM_COUNT ? s.anim : SOFLE_ANIM_EQ;
+        anim_reset();
+        if (!first) {
+            anim_spawn(); /* mostra o estilo novo uma vez, para ver o que mudou */
+        }
+    }
+    if (s.keys != last_keys) {
+        last_keys = s.keys;
+        anim_spawn();
+    }
+    last_state = s;
+    render(s);
 }
 
 ZMK_DISPLAY_WIDGET_LISTENER(sofle_screen, struct screen_state, update_cb, get_state)
@@ -328,6 +581,7 @@ ZMK_SUBSCRIPTION(sofle_screen, zmk_layer_state_changed);
 ZMK_SUBSCRIPTION(sofle_screen, zmk_keycode_state_changed);
 ZMK_SUBSCRIPTION(sofle_screen, zmk_endpoint_changed);
 ZMK_SUBSCRIPTION(sofle_screen, zmk_ble_active_profile_changed);
+ZMK_SUBSCRIPTION(sofle_screen, sofle_status_changed);
 #if IS_ENABLED(CONFIG_USB_DEVICE_STACK)
 ZMK_SUBSCRIPTION(sofle_screen, zmk_usb_conn_state_changed);
 #endif
@@ -346,6 +600,9 @@ lv_obj_t *zmk_display_status_screen() {
     landscape_canvas = lv_canvas_create(screen);
     lv_canvas_set_buffer(landscape_canvas, landscape_buf, LW, LH, LV_COLOR_FORMAT_L8);
     lv_obj_align(landscape_canvas, LV_ALIGN_TOP_LEFT, 0, 0);
+
+    anim_timer = lv_timer_create(anim_timer_cb, 66, NULL);
+    lv_timer_pause(anim_timer);
 
     sofle_screen_init();
     return screen;
