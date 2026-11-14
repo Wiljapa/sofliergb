@@ -1,10 +1,10 @@
 include:
   - board: nice_nano//zmk
-    shield: Sofle_L nice_oled
+    shield: Sofle_L
     snippet: studio-rpc-usb-uart
     artifact-name: Sofle_left_oled_dya
   - board: nice_nano//zmk
-    shield: Sofle_R nice_oled
+    shield: Sofle_R
     artifact-name: Sofle_right_oled_dya
   - board: nice_nano//zmk
     shield: settings_reset
