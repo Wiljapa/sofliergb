@@ -103,7 +103,7 @@ The other folders under `boards/shields/` (`Nice_view_config`, `Sofle_dongle`,
 | change a key for now | DYA Studio → Keymap (stored on the keyboard) |
 | change a key for good | edit `config/Sofle.keymap`, push, flash the new build (then `settings_reset`) |
 | change what a dial does | DYA Studio → *Rotary Encoder Configuration*, or edit `rsr_vol` / `rsr_pg` in the keymap |
-| change idle and sleep times | `CONFIG_ZMK_IDLE_TIMEOUT` (600000 ms) and `CONFIG_ZMK_IDLE_SLEEP_TIMEOUT` (900000 ms) in `config/Sofle.conf` |
+| change idle and sleep times | `CONFIG_ZMK_IDLE_TIMEOUT` (300000 ms, 5 minutes) and `CONFIG_ZMK_IDLE_SLEEP_TIMEOUT` (900000 ms) in `config/Sofle.conf` |
 | change the RGB defaults | `CONFIG_ZMK_RGB_UNDERGLOW_*` in `config/Sofle.conf` |
 | change the Bluetooth name | `CONFIG_ZMK_KEYBOARD_NAME` in `config/Sofle.conf` |
 | change the OLED screen | `src/status_screen.c`; flip `CONFIG_SOFLE_STATUS_SCREEN_ROTATE_CW` if it is upside down |
@@ -169,6 +169,21 @@ changed per layer in DYA Studio (Keymap tab → *Rotary Encoder Configuration*).
 > Also with `&ext_power EP_TOG`: it sits on the **LOWER layer, first key of the Tab row**, and on
 > ADJUST. It cuts power to the LEDs and the OLED, and
 > **the state is saved on the keyboard** (unplugging USB does not bring it back; press the key again).
+
+### LED colors
+
+LEDs are changed on the **ADJUST** layer (hold **LOWER + RAISE**):
+
+```
+Esc row:   [Esc]       Q        W        E         R         T
+           EXT_POWER   Hue-     Hue+     Sat-      Sat+      Effect
+Tab row:   [Tab]       A        S        D
+           (none)      Bright-  Bright+  RGB on/off
+```
+
+The firmware starts on effect 3 (a rotating rainbow), where the hue keys have nothing to change.
+**Press `T` once to reach effect 0 (solid color) first**, then use `Q`/`W` for the color.
+Effects: 0 solid, 1 breathing, 2 spectrum, 3 swirl. Settings are saved on each half, so do it on both.
 
 ## Flashing
 

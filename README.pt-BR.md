@@ -104,7 +104,7 @@ As outras pastas de `boards/shields/` (`Nice_view_config`, `Sofle_dongle`,
 | trocar uma tecla por enquanto | DYA Studio → Keymap (fica gravado no teclado) |
 | trocar uma tecla de vez | edite `config/Sofle.keymap`, suba, grave o novo build (depois `settings_reset`) |
 | mudar o que o dial faz | DYA Studio → *Rotary Encoder Configuration*, ou edite `rsr_vol` / `rsr_pg` no keymap |
-| mudar o tempo de ociosidade e sono | `CONFIG_ZMK_IDLE_TIMEOUT` (600000 ms) e `CONFIG_ZMK_IDLE_SLEEP_TIMEOUT` (900000 ms) em `config/Sofle.conf` |
+| mudar o tempo de ociosidade e sono | `CONFIG_ZMK_IDLE_TIMEOUT` (300000 ms, 5 minutos) e `CONFIG_ZMK_IDLE_SLEEP_TIMEOUT` (900000 ms) em `config/Sofle.conf` |
 | mudar o padrão do RGB | `CONFIG_ZMK_RGB_UNDERGLOW_*` em `config/Sofle.conf` |
 | mudar o nome do Bluetooth | `CONFIG_ZMK_KEYBOARD_NAME` em `config/Sofle.conf` |
 | mudar a tela do OLED | `src/status_screen.c`; inverta `CONFIG_SOFLE_STATUS_SCREEN_ROTATE_CW` se estiver de cabeça para baixo |
@@ -170,6 +170,22 @@ podem ser trocados por camada no DYA Studio (aba Keymap → *Rotary Encoder Conf
 > E com `&ext_power EP_TOG`: ele fica na **camada LOWER, primeira tecla da fileira da Tab**, e na
 > ADJUST. Corta a energia dos LEDs e do OLED, e **o
 > estado fica gravado no teclado** (tirar o USB não religa; aperte a tecla de novo).
+
+### Cores dos LEDs
+
+As cores mudam na camada **AJUSTE** (segure **LOWER + RAISE**):
+
+```
+Fileira da Esc:  [Esc]       Q        W        E         R         T
+                 EXT_POWER   Matiz-   Matiz+   Satur.-   Satur.+   Efeito
+Fileira da Tab:  [Tab]       A        S        D
+                 (nada)      Brilho-  Brilho+  Liga/desliga RGB
+```
+
+O firmware começa no efeito 3 (arco-íris girando), em que as teclas de matiz não têm o que mudar.
+**Aperte `T` uma vez para ir ao efeito 0 (cor fixa)** e use `Q`/`W` para escolher a cor.
+Efeitos: 0 cor fixa, 1 respirando, 2 espectro, 3 arco-íris. Os ajustes ficam salvos em cada
+metade, então faça nas duas.
 
 ## Gravar o firmware
 
