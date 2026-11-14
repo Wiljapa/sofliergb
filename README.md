@@ -115,7 +115,7 @@ The other folders under `boards/shields/` (`Nice_view_config`, `Sofle_dongle`,
 |---|---|
 | The right half does not type | It is a peripheral: check the right OLED says `OK` next to the Bluetooth icon. Run `settings_reset` on **both** halves, reflash, re-pair the computer, and wait a few minutes |
 | Computer says "Connected" but nothing types | stale keys after a reset: remove the keyboard from Bluetooth and pair again |
-| LEDs and OLED are both dark | `ext_power` was toggled off (ADJUST layer). Press that key again, or reflash |
+| LEDs and OLED are both dark | `ext_power` was toggled off (LOWER layer, first key of the Tab row, or ADJUST). Press that key again, or reflash |
 | OLED alone is dark | the 4 OLED jumpers are on the wrong face, or a display wire is loose (see [Hardware pitfalls](#hardware-pitfalls)) |
 | Screen blinks and shows static | LVGL ran out of memory and the keyboard is rebooting: keep the two memory settings from [OLED screen](#oled-screen) |
 | Caps Lock stuck on | hold RAISE and press G |
@@ -166,7 +166,8 @@ The dials default to **volume** (left) and **PgUp/PgDn** (right) on every layer,
 changed per layer in DYA Studio (Keymap tab → *Rotary Encoder Configuration*).
 
 > Careful with `BT_CLR` (top-left key of the RAISE layer): it erases the Bluetooth pairings.
-> Also with `&ext_power EP_TOG` (ADJUST layer): it cuts power to the LEDs and the OLED, and
+> Also with `&ext_power EP_TOG`: it sits on the **LOWER layer, first key of the Tab row**, and on
+> ADJUST. It cuts power to the LEDs and the OLED, and
 > **the state is saved on the keyboard** (unplugging USB does not bring it back; press the key again).
 
 ## Flashing

@@ -116,7 +116,7 @@ As outras pastas de `boards/shields/` (`Nice_view_config`, `Sofle_dongle`,
 |---|---|
 | A metade direita não digita | Ela é periférico: veja se o OLED direito mostra `OK` ao lado do ícone de Bluetooth. Rode `settings_reset` nas **duas** metades, regrave, pareie o computador de novo e espere alguns minutos |
 | O computador diz "Conectado" mas nada digita | chaves velhas depois de um reset: remova o teclado do Bluetooth e pareie de novo |
-| LEDs e OLED apagados juntos | o `ext_power` foi desligado (camada ADJUST). Aperte a tecla de novo, ou regrave |
+| LEDs e OLED apagados juntos | o `ext_power` foi desligado (camada LOWER, primeira tecla da fileira da Tab, ou ADJUST). Aperte a tecla de novo, ou regrave |
 | Só o OLED apagado | os 4 jumpers do OLED estão na face errada, ou um fio do display soltou (veja [Armadilhas de hardware](#armadilhas-de-hardware)) |
 | A tela pisca e fica com chuvisco | o LVGL ficou sem memória e o teclado reinicia: mantenha os dois ajustes de memória de [Tela do OLED](#tela-do-oled) |
 | Caps Lock travado | segure RAISE e aperte G |
@@ -167,7 +167,8 @@ Os dials começam como **volume** (esquerdo) e **PgUp/PgDn** (direito), em todas
 podem ser trocados por camada no DYA Studio (aba Keymap → *Rotary Encoder Configuration*).
 
 > Cuidado com o `BT_CLR` (canto superior esquerdo da camada RAISE): apaga os pareamentos.
-> E com `&ext_power EP_TOG` (camada ADJUST): corta a energia dos LEDs e do OLED, e **o
+> E com `&ext_power EP_TOG`: ele fica na **camada LOWER, primeira tecla da fileira da Tab**, e na
+> ADJUST. Corta a energia dos LEDs e do OLED, e **o
 > estado fica gravado no teclado** (tirar o USB não religa; aperte a tecla de novo).
 
 ## Gravar o firmware
