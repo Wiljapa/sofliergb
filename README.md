@@ -103,7 +103,7 @@ The other folders under `boards/shields/` (`Nice_view_config`, `Sofle_dongle`,
 | change a key for now | DYA Studio → Keymap (stored on the keyboard) |
 | change a key for good | edit `config/Sofle.keymap`, push, flash the new build (then `settings_reset`) |
 | change what a dial does | DYA Studio → *Rotary Encoder Configuration*, or edit `rsr_vol` / `rsr_pg` in the keymap |
-| change idle and sleep times | `CONFIG_ZMK_IDLE_TIMEOUT` (300000 ms, 5 minutes) and `CONFIG_ZMK_IDLE_SLEEP_TIMEOUT` (900000 ms) in `config/Sofle.conf` |
+| change idle and sleep times | `CONFIG_ZMK_IDLE_TIMEOUT` (120000 ms, 2 minutes) and `CONFIG_ZMK_IDLE_SLEEP_TIMEOUT` (900000 ms) in `config/Sofle.conf` |
 | change the RGB defaults | `CONFIG_ZMK_RGB_UNDERGLOW_*` in `config/Sofle.conf` |
 | change the Bluetooth name | `CONFIG_ZMK_KEYBOARD_NAME` in `config/Sofle.conf` |
 | change the OLED screen | `src/status_screen.c`; flip `CONFIG_SOFLE_STATUS_SCREEN_ROTATE_CW` if it is upside down |
@@ -236,9 +236,14 @@ rotates it 90° for the vertically mounted OLED.
 | Row 1 | `USB`, or Bluetooth icon + profile (`1*` connected, `1-` disconnected) | Bluetooth icon + `OK`/`--` (link to the left half) |
 | Bolt | USB power present | USB power present |
 | Battery | icon with level + `%` | icon with level + `%` |
-| Layer | name (4 letters: `BASE`, `LOWE`, `RAIS`, `ADJU`) | — |
-| Modifiers | `CTL SFT ALT GUI`, filled box = held | same, from the **key positions** of its own half |
+| Layer | name (4 letters: `BASE`, `LOWE`, `RAIS`, `ADJU`) | same name, **sent by the left half** (`----` until the first update) |
+| Modifiers | `CTL SFT ALT GUI`, filled box = held | same: its own half's **key positions** plus the modifiers **sent by the left half** |
 
+- **Layer and modifiers on the right half** travel from the central through ZMK's relay events
+  (`CONFIG_ZMK_SPLIT_RELAY_EVENT`, in both `Sofle_L.conf` and `Sofle_R.conf`, with the same
+  `DATA_LEN`). [`src/status_events.c`](src/status_events.c) defines the `sofle_status_changed` event
+  and relays it; to save the right half's battery the central resends the state only when the layer
+  or the modifiers change and when a right-half key is pressed.
 - If the screen comes out upside down, flip `CONFIG_SOFLE_STATUS_SCREEN_ROTATE_CW`
   (in [`Kconfig`](Kconfig)).
 - On the right half the positions are `49` (RShift), `57` (RCtrl), `58` (RAlt) and `59` (RGui),
@@ -346,8 +351,9 @@ Moving from ZMK v0.3 to the `main+dya` fork broke these things; here is how each
 
 - No `nice_oled` animations (cat, vim). The custom screen shows only the essentials.
 - Layer name is 4 letters on the screen.
-- Right-half modifiers come from physical key positions, not the keymap (`&mt` and similar do not
-  light up).
+- The right half lights its own modifier keys at once, by physical position, and then follows the
+  state relayed by the central; a modifier made by a `&mt` or similar on that half only shows
+  after the central answers.
 - The `main+dya` fork is experimental and unpinned.
 - RGB, OLED and the PandaKB shield were only tested on my hardware.
 

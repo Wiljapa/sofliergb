@@ -104,7 +104,7 @@ As outras pastas de `boards/shields/` (`Nice_view_config`, `Sofle_dongle`,
 | trocar uma tecla por enquanto | DYA Studio → Keymap (fica gravado no teclado) |
 | trocar uma tecla de vez | edite `config/Sofle.keymap`, suba, grave o novo build (depois `settings_reset`) |
 | mudar o que o dial faz | DYA Studio → *Rotary Encoder Configuration*, ou edite `rsr_vol` / `rsr_pg` no keymap |
-| mudar o tempo de ociosidade e sono | `CONFIG_ZMK_IDLE_TIMEOUT` (300000 ms, 5 minutos) e `CONFIG_ZMK_IDLE_SLEEP_TIMEOUT` (900000 ms) em `config/Sofle.conf` |
+| mudar o tempo de ociosidade e sono | `CONFIG_ZMK_IDLE_TIMEOUT` (120000 ms, 2 minutos) e `CONFIG_ZMK_IDLE_SLEEP_TIMEOUT` (900000 ms) em `config/Sofle.conf` |
 | mudar o padrão do RGB | `CONFIG_ZMK_RGB_UNDERGLOW_*` em `config/Sofle.conf` |
 | mudar o nome do Bluetooth | `CONFIG_ZMK_KEYBOARD_NAME` em `config/Sofle.conf` |
 | mudar a tela do OLED | `src/status_screen.c`; inverta `CONFIG_SOFLE_STATUS_SCREEN_ROTATE_CW` se estiver de cabeça para baixo |
@@ -236,9 +236,14 @@ gira 90° para o OLED montado em pé.
 | Linha 1 | `USB`, ou ícone Bluetooth + perfil (`1*` conectado, `1-` desconectado) | ícone Bluetooth + `OK`/`--` (link com o esquerdo) |
 | Raio | USB ligado | USB ligado |
 | Bateria | ícone com nível + `%` | ícone com nível + `%` |
-| Camada | nome (4 letras: `BASE`, `LOWE`, `RAIS`, `ADJU`) | — |
-| Modificadores | `CTL SFT ALT GUI`, caixa cheia = apertado | idem, pelas **posições das teclas** do próprio lado |
+| Camada | nome (4 letras: `BASE`, `LOWE`, `RAIS`, `ADJU`) | o mesmo nome, **enviado pela metade esquerda** (`----` até a primeira atualização) |
+| Modificadores | `CTL SFT ALT GUI`, caixa cheia = apertado | idem: as **posições das teclas** do próprio lado mais os modificadores **enviados pela metade esquerda** |
 
+- **Camada e modificadores no lado direito** viajam do central pelos eventos de relay do ZMK
+  (`CONFIG_ZMK_SPLIT_RELAY_EVENT`, em `Sofle_L.conf` e `Sofle_R.conf`, com o mesmo `DATA_LEN`).
+  O [`src/status_events.c`](src/status_events.c) define o evento `sofle_status_changed` e o repassa;
+  para poupar a bateria do direito, o central só reenvia o estado quando a camada ou os
+  modificadores mudam e quando uma tecla do lado direito é apertada.
 - Se a tela sair de cabeça para baixo, troque `CONFIG_SOFLE_STATUS_SCREEN_ROTATE_CW`
   (em [`Kconfig`](Kconfig)).
 - No direito, as posições são `49` (RShift), `57` (RCtrl), `58` (RAlt) e `59` (RGui), válidas
@@ -344,8 +349,9 @@ Ao migrar do ZMK v0.3 para o fork `main+dya`, estas coisas quebraram e foram cor
 
 - Sem as animações do `nice_oled` (gato, vim). A tela própria mostra só o essencial.
 - Nome da camada com 4 letras na tela.
-- Os modificadores do lado direito vêm das posições físicas, não do keymap (`&mt` e afins não
-  acendem).
+- O lado direito acende na hora as próprias teclas modificadoras, pela posição física, e depois
+  segue o estado repassado pelo central; um modificador feito por `&mt` ou similar nessa metade só
+  aparece depois que o central responde.
 - O fork `main+dya` é experimental e sem versão fixa.
 - RGB, OLED e o shield PandaKB só foram testados no meu hardware.
 
