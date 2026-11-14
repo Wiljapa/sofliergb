@@ -67,6 +67,7 @@ static void draw_text(lv_layer_t *layer, const char *txt, int x, int y, int w, l
     d.font = &lv_font_unscii_8;
     d.color = color;
     d.text = txt;
+    d.text_local = 1; /* o LVGL copia a string: o desenho so acontece no finish_layer */
     d.align = LV_TEXT_ALIGN_CENTER;
     lv_area_t a = {.x1 = x, .y1 = y, .x2 = x + w - 1, .y2 = y + 7};
     lv_draw_label(layer, &d, &a);
