@@ -68,5 +68,7 @@ manifest:
     - name: zmk-feature-runtime-combo
       import: true
     - name: zmk-feature-kscan-diagnostics
+    - name: zmk-behavior-runtime-sensor-rotate
+      import: true
   self:
     path: config
