@@ -1,244 +1,253 @@
-# Sofle sem fio (PandaKB) com ZMK + DYA Studio
+# Wireless Sofle (PandaKB) with ZMK + DYA Studio
 
-Firmware do meu **Sofle RGB MX sem fio** (placa PandaKB, controladores nRF52840), feito com o
-[ZMK](https://zmk.dev) e configurável em tempo real pelo
+🇬🇧 English · 🇧🇷 [Português](README.pt-BR.md)
+
+Firmware for my **wireless Sofle RGB MX** (PandaKB board, nRF52840 controllers), built on
+[ZMK](https://zmk.dev) and editable live from the browser with
 [DYA Studio](https://studio.dya.cormoran.works/).
 
-O que este repositório tem de diferente de um `zmk-config` comum:
+What this repository does differently from a plain `zmk-config`:
 
-- roda no **fork do ZMK do cormoran (`main+dya`, Zephyr 4.1)**, o que liga o DYA Studio
-  (keymap, macros, combos e dial editáveis pelo navegador, sem recompilar);
-- uma **tela de status própria para o OLED em pé** (Bluetooth, raio de carga, bateria com nível,
-  camada e modificadores), escrita em LVGL 9 porque o `zmk-nice-oled` não compila no Zephyr 4.1;
-- o registro, num só lugar, de **tudo que deu errado na montagem** e como foi resolvido
-  (seção [Armadilhas de hardware](#armadilhas-de-hardware)).
+- it runs on **cormoran's ZMK fork (`main+dya`, Zephyr 4.1)**, which enables DYA Studio
+  (keymap, macros, combos and rotary encoders editable in the browser, no rebuild needed);
+- it ships a **custom status screen for the vertically mounted OLED** (Bluetooth, charging bolt,
+  battery icon with level, active layer and modifiers), written for LVGL 9 because
+  `zmk-nice-oled` does not build on Zephyr 4.1;
+- it keeps, in one place, a record of **everything that went wrong while building the keyboard**
+  and how it was fixed (see [Hardware pitfalls](#hardware-pitfalls)).
 
-> Projeto pessoal, testado só no meu teclado. O fork `main+dya` do ZMK é experimental e o
-> `west.yml` aponta para branches (não para commits fixos): uma compilação nova pode puxar
-> versões diferentes. **Guarde sempre os `.uf2` que funcionam.**
+> Personal project, tested only on my own keyboard. The ZMK `main+dya` fork is experimental and
+> `west.yml` points to branches, not pinned commits, so a new build may pull different versions.
+> **Always keep the `.uf2` files that work.**
 
-## Sumário
+## Contents
 
 - [Hardware](#hardware)
 - [Branches](#branches)
-- [Camadas do keymap](#camadas-do-keymap)
-- [Gravar o firmware](#gravar-o-firmware)
+- [Keymap layers](#keymap-layers)
+- [Flashing](#flashing)
 - [DYA Studio](#dya-studio)
-- [Tela do OLED](#tela-do-oled)
-- [Compilar](#compilar)
-- [Armadilhas de hardware](#armadilhas-de-hardware)
-- [Notas sobre o Zephyr 4.1](#notas-sobre-o-zephyr-41)
-- [Limitações conhecidas](#limitações-conhecidas)
-- [Créditos](#créditos)
+- [OLED screen](#oled-screen)
+- [Building](#building)
+- [Hardware pitfalls](#hardware-pitfalls)
+- [Zephyr 4.1 migration notes](#zephyr-41-migration-notes)
+- [Known limitations](#known-limitations)
+- [Credits](#credits)
 
 ## Hardware
 
-| Item | Detalhe |
+| Part | Details |
 |---|---|
-| Placa | [PandaKB Sofle RGB MX](https://pandakb.com/guides/sofle-rgb-mx-build-guide) (hot-swap, PCB **reversível**) |
-| Controladores | clones **SuperMini nRF52840** (bootloader UF2 do nice!nano). No ZMK usa-se a placa `nice_nano` |
-| Display | OLED 128×32 SSD1306 (I²C), **montado em pé** na placa |
-| LEDs | 72 × SK6812MINI-E (36 por metade: 1 indicador, 6 underglow, 29 por tecla) |
-| Encoders | 2 × EC11 (dial esquerdo e direito) |
-| Energia | LiPo por metade, ligada ao B+/B- (o conector CN1 da placa não funcionou na minha; ver abaixo) |
-| Conexão | Bluetooth; as metades falam entre si por BLE (o cabo TRRS não é usado no ZMK) |
+| Board | [PandaKB Sofle RGB MX](https://pandakb.com/guides/sofle-rgb-mx-build-guide) (hot-swap, **reversible** PCB) |
+| Controllers | **SuperMini nRF52840** clones (nice!nano UF2 bootloader). ZMK uses the `nice_nano` board |
+| Display | 128×32 SSD1306 OLED (I²C), **mounted vertically** on the board |
+| LEDs | 72 × SK6812MINI-E (36 per half: 1 indicator, 6 underglow, 29 per-key) |
+| Encoders | 2 × EC11 (left and right dial) |
+| Power | One LiPo per half wired to B+/B- (the board's CN1 socket did not work on mine, see below) |
+| Connection | Bluetooth; the halves talk to each other over BLE (the TRRS cable is unused in ZMK) |
 
-O **esquerdo é o central** (fala com o computador e com o DYA Studio) e o **direito é
-periférico**. O periférico não aparece como teclado no USB.
+The **left half is the central** (it talks to the computer and to DYA Studio) and the **right half
+is a peripheral**. A ZMK peripheral does not show up as a keyboard over USB.
 
 ## Branches
 
-| Branch | Para quê |
+| Branch | Purpose |
 |---|---|
-| `main` | estado original do repositório |
-| `pandakb-shield` | firmware **ZMK v0.3** (Zephyr 3.5) com o shield PandaKB e a tela `nice_oled`. É a volta segura |
-| `dya-teste` | primeira migração para o fork `main+dya` (usa a tela embutida do ZMK) |
-| **`dya-tela`** | **o branch em uso**: tudo do `dya-teste` + dial configurável + tela própria |
+| `main` | original state of the repository |
+| `pandakb-shield` | **ZMK v0.3** firmware (Zephyr 3.5) with the PandaKB shield and the `nice_oled` screen. The safe fallback |
+| `dya-teste` | first migration to the `main+dya` fork (uses ZMK's built-in screen) |
+| **`dya-tela`** | **the branch in use**: everything from `dya-teste` + configurable dials + custom screen |
 
-## Camadas do keymap
+## Keymap layers
 
-O keymap fica em [`config/Sofle.keymap`](config/Sofle.keymap).
+The keymap lives in [`config/Sofle.keymap`](config/Sofle.keymap).
 
 ```
-Polegar esquerdo (fora → centro):  GUI  ALT  CTRL  LOWER  ENTER
-Polegar direito  (centro → fora):  SPACE  RAISE  CTRL  ALT  GUI
+Left thumb  (outer → inner):  GUI  ALT  CTRL  LOWER  ENTER
+Right thumb (inner → outer):  SPACE  RAISE  CTRL  ALT  GUI
 ```
 
-| Camada | Como chegar | Para quê |
+| Layer | How to reach it | What it is for |
 |---|---|---|
-| 0 `base` | — | letras, números, modificadores |
-| 1 `lower` | segurar **LOWER** | `F1`–`F12`, números, símbolos (`! @ # $ % ^ & * ( )`), `[ ] { } = - + \ ;` |
-| 2 `raise` | segurar **RAISE** | setas, `Del`, `PgUp`/`PgDn`, copiar/colar/desfazer, **`Caps Lock` (RAISE + G)**, perfis Bluetooth |
-| 3 `adjust` | segurar **LOWER + RAISE** | perfis BT, `BT_CLR`, energia e efeitos do RGB |
+| 0 `base` | — | letters, numbers, modifiers |
+| 1 `lower` | hold **LOWER** | `F1`–`F12`, numbers, symbols (`! @ # $ % ^ & * ( )`), `[ ] { } = - + \ ;` |
+| 2 `raise` | hold **RAISE** | arrows, `Del`, `PgUp`/`PgDn`, copy/paste/undo, **`Caps Lock` (RAISE + G)**, Bluetooth profiles |
+| 3 `adjust` | hold **LOWER + RAISE** | BT profiles, `BT_CLR`, RGB power and effects |
 
-Os dials começam como **volume** (esquerdo) e **PgUp/PgDn** (direito), em todas as camadas, mas
-podem ser trocados por camada no DYA Studio (aba Keymap → *Rotary Encoder Configuration*).
+The dials default to **volume** (left) and **PgUp/PgDn** (right) on every layer, and can be
+changed per layer in DYA Studio (Keymap tab → *Rotary Encoder Configuration*).
 
-> Cuidado com o `BT_CLR` (canto superior esquerdo da camada RAISE): apaga os pareamentos.
-> E com `&ext_power EP_TOG` (camada ADJUST): corta a energia dos LEDs e do OLED, e **o
-> estado fica gravado no teclado** (tirar o USB não religa; aperte a tecla de novo).
+> Careful with `BT_CLR` (top-left key of the RAISE layer): it erases the Bluetooth pairings.
+> Also with `&ext_power EP_TOG` (ADJUST layer): it cuts power to the LEDs and the OLED, and
+> **the state is saved on the keyboard** (unplugging USB does not bring it back; press the key again).
 
-## Gravar o firmware
+## Flashing
 
-Os `.uf2` saem do GitHub Actions (artefato `firmware`) ou da [compilação local](#compilar).
+`.uf2` files come from GitHub Actions (the `firmware` artifact) or from a
+[local build](#building).
 
-Para cada metade:
+For each half:
 
-1. USB ligado, **dois toques rápidos no botão de reset**. Aparece um disco (tipo `NICENANO`).
-2. Copie o `settings_reset_dya.uf2`. A placa reinicia sozinha.
-3. Dois toques no reset de novo.
-4. Copie o `Sofle_left_oled_dya.uf2` (esquerdo) ou o `Sofle_right_oled_dya.uf2` (direito).
+1. USB plugged in, **double-tap the reset button**. A disk (like `NICENANO`) appears.
+2. Copy `settings_reset_dya.uf2`. The board reboots by itself.
+3. Double-tap reset again.
+4. Copy `Sofle_left_oled_dya.uf2` (left) or `Sofle_right_oled_dya.uf2` (right).
 
-Regras que economizam tempo:
+Rules that save time:
 
-- **`settings_reset` nas duas metades** quando trocar de firmware ou de controlador. Sem isso o
-  esquerdo guarda o pareamento do controlador antigo do direito e não fala com o novo.
-- No computador, remova o teclado do Bluetooth e pareie de novo depois de um `settings_reset`:
-  o BlueZ continua mostrando "Connected" com chaves velhas, sem entrada de teclado.
-- A conexão inicial entre as metades pode **demorar alguns minutos**.
-- O `settings_reset` também apaga o que foi editado no DYA Studio (isso fica no teclado,
-  não volta para o `.keymap`).
-- Montar o disco no Linux sem sudo: `udisksctl mount -b /dev/sdX` (confira com `lsblk`).
+- **Run `settings_reset` on both halves** when you change firmware or swap a controller.
+  Otherwise the left half keeps the pairing of the old right controller and will not talk to the
+  new one.
+- On the computer, remove the keyboard from Bluetooth and pair it again after a `settings_reset`.
+  BlueZ keeps showing "Connected" with stale keys and no keyboard input.
+- The first connection between the halves can **take a few minutes**.
+- `settings_reset` also erases whatever you edited in DYA Studio (that is stored on the keyboard
+  and never flows back into the `.keymap`).
+- Mounting the disk on Linux without sudo: `udisksctl mount -b /dev/sdX` (check with `lsblk`).
 
 ## DYA Studio
 
-Abra <https://studio.dya.cormoran.works/> em um navegador **Chromium** e conecte o esquerdo.
+Open <https://studio.dya.cormoran.works/> in a **Chromium-based** browser and connect the left
+half.
 
-- **USB** é o caminho confiável. No Linux a porta serial precisa estar liberada para o seu
-  usuário (uma regra `udev` com `uaccess` para `1d50:615e`).
-- No meu computador funcionou no **Helium**. No Brave a conexão foi cancelada e o site avisou
-  *"BLE Not Supported"*. Firefox não tem Web Bluetooth.
-- **Bluetooth** no Linux exige `chrome://flags/#enable-experimental-web-platform-features`, e o
-  teclado já pareado como teclado pode não aparecer na lista de dispositivos.
-- Se aparecer *"Runtime sensor rotation subsystem is not available"*, falta o módulo
-  `zmk-behavior-runtime-sensor-rotate` (já está neste `west.yml`).
-- O `OS Layout` do site é só visual; não muda o que o teclado envia.
+- **USB** is the reliable path. On Linux the serial port must be accessible to your user (a `udev`
+  rule with `uaccess` for `1d50:615e`).
+- On my machine it worked in **Helium**. In Brave the connection was cancelled and the site said
+  *"BLE Not Supported"*. Firefox has no Web Bluetooth.
+- **Bluetooth** on Linux needs `chrome://flags/#enable-experimental-web-platform-features`, and a
+  keyboard already paired as a keyboard may not show up in the device list.
+- If you see *"Runtime sensor rotation subsystem is not available"*, the
+  `zmk-behavior-runtime-sensor-rotate` module is missing (it is already in this `west.yml`).
+- The site's `OS Layout` is visual only; it does not change what the keyboard sends.
 
-O central usa `CONFIG_ZMK_STUDIO_LOCKING=n`, então não é preciso apertar uma tecla de
-desbloqueio.
+The central uses `CONFIG_ZMK_STUDIO_LOCKING=n`, so no unlock key is needed.
 
-## Tela do OLED
+## OLED screen
 
-[`src/status_screen.c`](src/status_screen.c) desenha uma tela de 32×128 em um *canvas* do LVGL 9 e
-gira 90° para o OLED montado em pé.
+[`src/status_screen.c`](src/status_screen.c) draws a 32×128 screen on an LVGL 9 *canvas* and
+rotates it 90° for the vertically mounted OLED.
 
-| | Esquerdo (central) | Direito (periférico) |
+| | Left (central) | Right (peripheral) |
 |---|---|---|
-| Linha 1 | `USB`, ou ícone Bluetooth + perfil (`1*` conectado, `1-` desconectado) | ícone Bluetooth + `OK`/`--` (link com o esquerdo) |
-| Raio | USB ligado | USB ligado |
-| Bateria | ícone com nível + `%` | ícone com nível + `%` |
-| Camada | nome (4 letras: `BASE`, `LOWE`, `RAIS`, `ADJU`) | — |
-| Modificadores | `CTL SFT ALT GUI`, caixa cheia = apertado | idem, pelas **posições das teclas** do próprio lado |
+| Row 1 | `USB`, or Bluetooth icon + profile (`1*` connected, `1-` disconnected) | Bluetooth icon + `OK`/`--` (link to the left half) |
+| Bolt | USB power present | USB power present |
+| Battery | icon with level + `%` | icon with level + `%` |
+| Layer | name (4 letters: `BASE`, `LOWE`, `RAIS`, `ADJU`) | — |
+| Modifiers | `CTL SFT ALT GUI`, filled box = held | same, from the **key positions** of its own half |
 
-- Se a tela sair de cabeça para baixo, troque `CONFIG_SOFLE_STATUS_SCREEN_ROTATE_CW`
-  (em [`Kconfig`](Kconfig)).
-- No direito, as posições são `49` (RShift), `57` (RCtrl), `58` (RAlt) e `59` (RGui), válidas
-  para o keymap de 60 posições. Mudou o layout, mude os números em `periph_track()`.
-- **Memória:** o pool padrão do LVGL (2 KB) e a pilha da thread do display (3 KB) não bastam
-  para desenhar com canvas. Em `config/Sofle.conf` estão `CONFIG_LV_Z_MEM_POOL_SIZE=16384` e
-  `CONFIG_ZMK_DISPLAY_DEDICATED_THREAD_STACK_SIZE=6144`. Sem isso o teclado **reinicia em loop**
-  (a tela pisca e fica "chuviscada"), porque os asserts do LVGL vêm desligados e a falta de
-  memória vira ponteiro nulo.
+- If the screen comes out upside down, flip `CONFIG_SOFLE_STATUS_SCREEN_ROTATE_CW`
+  (in [`Kconfig`](Kconfig)).
+- On the right half the positions are `49` (RShift), `57` (RCtrl), `58` (RAlt) and `59` (RGui),
+  valid for the 60-position keymap. If you change the layout, change the numbers in
+  `periph_track()`.
+- **Memory:** the default LVGL pool (2 KB) and display thread stack (3 KB) are not enough to draw
+  with a canvas. `config/Sofle.conf` sets `CONFIG_LV_Z_MEM_POOL_SIZE=16384` and
+  `CONFIG_ZMK_DISPLAY_DEDICATED_THREAD_STACK_SIZE=6144`. Without them the keyboard **reboots in a
+  loop** (the screen blinks and shows static), because LVGL asserts are disabled and running out
+  of memory becomes a null pointer.
 
-## Compilar
+## Building
 
 ### GitHub Actions
 
-Um *push* dispara o workflow ([`.github/workflows/build.yml`](.github/workflows/build.yml)), que
-usa o workflow oficial do ZMK. Os firmwares saem no artefato `firmware`.
+A *push* triggers the workflow ([`.github/workflows/build.yml`](.github/workflows/build.yml)),
+which uses ZMK's official workflow. Firmware is published in the `firmware` artifact.
 
-### Local, com Docker (sem subir nada)
+### Locally, with Docker (nothing gets uploaded)
 
-Usa a mesma imagem do Actions (`zmkfirmware/zmk-build-arm:stable`). O workspace do `west` tem uns
-3 GB e fica fora deste repositório.
+It uses the same image as Actions (`zmkfirmware/zmk-build-arm:stable`). The `west` workspace is
+about 3 GB and lives outside this repository.
 
 ```bash
 mkdir -p ~/zmk-build && cd ~/zmk-build
-cp -r /caminho/do/repo/config ./config
+cp -r /path/to/repo/config ./config
 
-# 1) baixar ZMK, Zephyr e módulos (uma vez)
+# 1) fetch ZMK, Zephyr and modules (once)
 docker run --rm -u $(id -u):$(id -g) -e HOME=/tmp \
   -v ~/zmk-build:/ws zmkfirmware/zmk-build-arm:stable bash -c \
   'cd /ws && west init -l config && west update --fetch-opt=--filter=tree:0 -o=--depth=1'
 
-# 2) compilar (L = esquerdo com Studio, R = direito)
+# 2) build (L = left with Studio, R = right)
 docker run --rm -u $(id -u):$(id -g) -e HOME=/tmp \
-  -v ~/zmk-build:/ws -v /caminho/do/repo:/repo zmkfirmware/zmk-build-arm:stable bash -c \
+  -v ~/zmk-build:/ws -v /path/to/repo:/repo zmkfirmware/zmk-build-arm:stable bash -c \
   'cd /ws && west zephyr-export && west build -s zmk/app -d build/L -b "nice_nano//zmk" \
      -S studio-rpc-usb-uart -- -DSHIELD=Sofle_L -DZMK_CONFIG=/ws/config -DZMK_EXTRA_MODULES=/repo'
-# resultado: build/L/zephyr/zmk.uf2
+# result: build/L/zephyr/zmk.uf2
 ```
 
-Para o direito, troque `L` por `R` e tire o `-S studio-rpc-usb-uart`. O `west zephyr-export`
-precisa rodar em cada `docker run`, porque o `HOME=/tmp` do contêiner some.
+For the right half, replace `L` with `R` and drop `-S studio-rpc-usb-uart`.
+`west zephyr-export` has to run in every `docker run`, because the container's `HOME=/tmp`
+disappears.
 
-Este repositório é um **módulo do Zephyr** ([`zephyr/module.yml`](zephyr/module.yml)): o
-`CMakeLists.txt` e o `Kconfig` da raiz compilam a tela própria, e `boards/shields/Sofle` define o
+This repository is a **Zephyr module** ([`zephyr/module.yml`](zephyr/module.yml)): the root
+`CMakeLists.txt` and `Kconfig` build the custom screen, and `boards/shields/Sofle` defines the
 shield.
 
-## Armadilhas de hardware
+## Hardware pitfalls
 
-Tudo isso foi encontrado na prática; foi o que mais custou tempo.
+All of this was found the hard way, and it is what cost the most time.
 
-**A PCB é reversível: confira sempre a face certa.**
-- Os **4 jumpers do OLED** são feitos na **face de cima** (a mesma dos sockets das chaves), logo
-  abaixo da pegada do controlador. Feitos do lado errado, o OLED não acende.
-- Cada LED tem pegada nas duas faces. Um LED soldado na face errada e retirado pode arrancar a
-  trilha. O canto marcado do LED deve coincidir com a marca da pegada.
+**The PCB is reversible: always check you are on the right face.**
+- The **4 OLED jumpers** go on the **top face** (the same one as the switch sockets), just below
+  the controller footprint. Done on the wrong side, the OLED stays dark.
+- Every LED has a footprint on both faces. An LED soldered on the wrong face and then removed can
+  rip out the trace. The marked corner of the LED must match the mark on the footprint.
 
-**Cadeia de LEDs.** A ordem é a numeração do guia da PandaKB (1 = indicador perto do TRRS, 2–7
-underglow, 8–36 teclas). Se a cadeia para no LED *N*, suspeite **primeiro do último aceso (N)**: o
-`DOUT` morto ou mal soldado, e só depois do primeiro apagado (N+1). Reparos que funcionaram: trocar
-o LED *N*; fio fino do `DOUT` do *N* ao `DIN` do *N+1*.
+**LED chain.** The order is the numbering from PandaKB's guide (1 = indicator near the TRRS, 2–7
+underglow, 8–36 keys). If the chain stops at LED *N*, suspect the **last lit LED (N) first**: a
+dead or badly soldered `DOUT`, and only then the first dark one (N+1). Repairs that worked:
+replacing LED *N*; a thin wire from `DOUT` of *N* to `DIN` of *N+1*.
 
-**Controladores clones.** Vários sintomas vieram do **controlador**, não da placa:
-- trocar os controladores entre as metades isola se o defeito é do controlador ou da placa;
-- pino com **solda fria / sem escorrer** (ou perna torta) deixa uma **linha ou coluna morta**:
-  fileira dos polegares no `pro_micro 9` (P1.06) e coluna `0 P ; /` no `pro_micro 18` (P1.15,
-  etiqueta `115`). Resoldar o pino resolveu;
-- um controlador novo pode não alimentar o OLED nem os LEDs;
-- cuidado: a etiqueta do pino (`009`) **não** é o número do `pro_micro` (`9`).
+**Clone controllers.** Many symptoms came from the **controller**, not the board:
+- swapping controllers between the halves tells you whether the fault is the controller or the
+  board;
+- a pin with a **cold joint / solder that did not flow down** (or a bent leg) gives a **dead row or
+  column**: the thumb row on `pro_micro 9` (P1.06) and the `0 P ; /` column on `pro_micro 18`
+  (P1.15, label `115`). Re-soldering the pin fixed it;
+- a new controller may not power the OLED or the LEDs;
+- careful: the pin label (`009`) is **not** the `pro_micro` number (`9`).
 
-**Bateria.** O soquete **CN1** (embaixo do controlador) não passou energia na minha placa.
-Ligar a bateria direto nos pads **B+/B- da borda da PCB** resolveu. **Não** faça jumper no `RAW`: é
-a entrada de 5 V do USB e pula o carregador. Confira a polaridade com multímetro e isole com Kapton.
+**Battery.** The **CN1** socket (under the controller) passed no power on my board. Wiring the
+battery straight to the **B+/B- pads on the PCB edge** fixed it. Do **not** jumper to `RAW`: it is
+the 5 V USB input and bypasses the charger. Check polarity with a multimeter and insulate with
+Kapton.
 
-**Teste de matriz do lado direito.** O periférico não vira teclado no USB. Para testar a matriz
-dele, grave um build temporário como central (`-DCONFIG_ZMK_SPLIT_ROLE_CENTRAL=y`) e depois
-regrave o firmware normal.
+**Testing the right half's matrix.** A peripheral does not become a USB keyboard. To test its
+matrix, flash a temporary build as central (`-DCONFIG_ZMK_SPLIT_ROLE_CENTRAL=y`) and then reflash
+the normal firmware.
 
-**Sintomas de enumeração.** Um `lsusb` que lista o `1d50:615e` **sem nenhuma interface** (e nenhum
-`/dev/input` ou `ttyACM0`) quer dizer que a enumeração falhou; costuma ser hub USB. Use uma porta
-direta da placa-mãe e um cabo de dados.
+**Enumeration symptoms.** An `lsusb` that lists `1d50:615e` **with no interface at all** (and no
+`/dev/input` or `ttyACM0`) means enumeration failed, usually a USB hub. Use a direct motherboard
+port and a data cable.
 
-## Notas sobre o Zephyr 4.1
+## Zephyr 4.1 migration notes
 
-Ao migrar do ZMK v0.3 para o fork `main+dya`, estas coisas quebraram e foram corrigidas:
+Moving from ZMK v0.3 to the `main+dya` fork broke these things; here is how each was fixed:
 
-| Sintoma | Causa | Solução |
+| Symptom | Cause | Fix |
 |---|---|---|
-| `Aborting due to Kconfig warnings` | `CONFIG_WS2812_STRIP` não existe mais | apagar as linhas (o driver vem pelo devicetree) |
-| mesmo erro, em `BATTERY_LEVEL_FETCHING`/`PROXY` | opções só do central, atribuídas ao periférico | tirar do `Sofle_R.conf` |
-| `LV_IMG_CF_*` / `lv_draw_img_dsc_t` não declarados | `zmk-nice-oled` usa LVGL 8; o Zephyr 4.1 usa LVGL 9 | remover o módulo e usar a tela embutida ou a própria |
-| OLED só com blocos | `CONFIG_LV_FONT_DEFAULT_MONTSERRAT_26` herdada do nice_view (26 px num display de 32 px) | tirar as duas linhas de fonte |
-| nome da placa | `nice_nano_v2` virou `nice_nano//zmk` | ajustar o `build.yaml` |
-| `zmk/display.h: No such file` ao compilar o módulo | faltam os includes do ZMK | `zephyr_library_include_directories(${CMAKE_SOURCE_DIR}/include)` |
-| `lv_draw_triangle_dsc_t` desconhecido | header fora do `lvgl.h` e campos `bg_color`/`bg_opa` | `#include "draw/lv_draw_triangle.h"` |
+| `Aborting due to Kconfig warnings` | `CONFIG_WS2812_STRIP` no longer exists | delete the lines (the driver comes from the devicetree) |
+| same error, on `BATTERY_LEVEL_FETCHING`/`PROXY` | central-only options assigned to the peripheral | remove them from `Sofle_R.conf` |
+| `LV_IMG_CF_*` / `lv_draw_img_dsc_t` undeclared | `zmk-nice-oled` targets LVGL 8; Zephyr 4.1 uses LVGL 9 | drop the module and use the built-in or the custom screen |
+| OLED shows only blocks | `CONFIG_LV_FONT_DEFAULT_MONTSERRAT_26` inherited from nice_view (26 px font on a 32 px display) | remove both font lines |
+| board name | `nice_nano_v2` became `nice_nano//zmk` | update `build.yaml` |
+| `zmk/display.h: No such file` when building the module | ZMK include paths missing | `zephyr_library_include_directories(${CMAKE_SOURCE_DIR}/include)` |
+| `lv_draw_triangle_dsc_t` unknown | header not pulled in by `lvgl.h`, and fields are `bg_color`/`bg_opa` | `#include "draw/lv_draw_triangle.h"` |
 
-## Limitações conhecidas
+## Known limitations
 
-- Sem as animações do `nice_oled` (gato, vim). A tela própria mostra só o essencial.
-- Nome da camada com 4 letras na tela.
-- Os modificadores do lado direito vêm das posições físicas, não do keymap (`&mt` e afins não
-  acendem).
-- O fork `main+dya` é experimental e sem versão fixa.
-- RGB, OLED e o shield PandaKB só foram testados no meu hardware.
+- No `nice_oled` animations (cat, vim). The custom screen shows only the essentials.
+- Layer name is 4 letters on the screen.
+- Right-half modifiers come from physical key positions, not the keymap (`&mt` and similar do not
+  light up).
+- The `main+dya` fork is experimental and unpinned.
+- RGB, OLED and the PandaKB shield were only tested on my hardware.
 
-## Créditos
+## Credits
 
-- [ZMK Firmware](https://github.com/zmkfirmware/zmk) (MIT) e o fork
-  [`cormoran/zmk`](https://github.com/cormoran/zmk) com os módulos do
-  [DYA Studio](https://github.com/cormoran/dya-studio).
-- Shield do Sofle: Ryan Cross e colaboradores do ZMK; ajustes para a placa e guia de montagem da
+- [ZMK Firmware](https://github.com/zmkfirmware/zmk) (MIT) and the
+  [`cormoran/zmk`](https://github.com/cormoran/zmk) fork with the
+  [DYA Studio](https://github.com/cormoran/dya-studio) modules.
+- Sofle shield: Ryan Cross and ZMK contributors; board adjustments and build guide from
   [PandaKB](https://pandakb.com/guides/sofle-rgb-mx-build-guide).
-- Conferir as licenças de cada projeto de origem antes de reutilizar o código.
+- Check each upstream project's license before reusing its code.
