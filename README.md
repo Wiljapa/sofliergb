@@ -120,7 +120,7 @@ The other folders under `boards/shields/` (`Nice_view_config`, `Sofle_dongle`,
 | Screen blinks and shows static | LVGL ran out of memory and the keyboard is rebooting: keep the two memory settings from [OLED screen](#oled-screen) |
 | Caps Lock stuck on | hold RAISE and press G |
 | DYA Studio will not connect | use a Chromium browser over USB, with a data cable straight into the computer (no hub) |
-| One column or row is dead | cold solder joint on the controller pin; re-solder it |
+| One column or row is dead | cold solder joint on the header pin of the PCB base (where the controller plugs in); re-solder it first, then suspect the controller |
 
 ## Hardware
 
@@ -302,13 +302,17 @@ underglow, 8–36 keys). If the chain stops at LED *N*, suspect the **last lit L
 dead or badly soldered `DOUT`, and only then the first dark one (N+1). Repairs that worked:
 replacing LED *N*; a thin wire from `DOUT` of *N* to `DIN` of *N+1*.
 
-**Clone controllers.** Many symptoms came from the **controller**, not the board:
-- swapping controllers between the halves tells you whether the fault is the controller or the
-  board;
+**Dead rows, columns or a "dead" controller: check the solder on the PCB first, then the controller.**
+For days I blamed the controllers, then found **badly soldered header pins on the PCB itself**, the
+base where the controller plugs in. Both can be at fault (the controllers are cheap clones), and I
+could not tell them apart, so treat it as a sum of causes.
 - a pin with a **cold joint / solder that did not flow down** (or a bent leg) gives a **dead row or
   column**: the thumb row on `pro_micro 9` (P1.06) and the `0 P ; /` column on `pro_micro 18`
-  (P1.15, label `115`). Re-soldering the pin fixed it;
-- a new controller may not power the OLED or the LEDs;
+  (P1.15, label `115`). Re-soldering fixed it;
+- swapping controllers can look like a fix because it re-seats the contacts, so it does not prove
+  the controller is faulty (or healthy); reflow the base pins first, since it is the cheaper test;
+- a controller that seems not to power the OLED or the LEDs may be a weak joint on the power pins
+  of the base, or a bad controller (not measured);
 - careful: the pin label (`009`) is **not** the `pro_micro` number (`9`).
 
 **Battery.** The **CN1** socket (under the controller) passed no power on my board. Wiring the

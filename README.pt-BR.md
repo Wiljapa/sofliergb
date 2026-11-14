@@ -121,7 +121,7 @@ As outras pastas de `boards/shields/` (`Nice_view_config`, `Sofle_dongle`,
 | A tela pisca e fica com chuvisco | o LVGL ficou sem memória e o teclado reinicia: mantenha os dois ajustes de memória de [Tela do OLED](#tela-do-oled) |
 | Caps Lock travado | segure RAISE e aperte G |
 | O DYA Studio não conecta | use um navegador Chromium por USB, com cabo de dados direto no computador (sem hub) |
-| Uma coluna ou linha morta | solda fria no pino do controlador; resolde |
+| Uma coluna ou linha morta | solda fria no pino da base da PCB (onde o controlador encaixa); resolde primeiro e só depois suspeite do controlador |
 
 ## Hardware
 
@@ -300,12 +300,18 @@ underglow, 8–36 teclas). Se a cadeia para no LED *N*, suspeite **primeiro do �
 `DOUT` morto ou mal soldado, e só depois do primeiro apagado (N+1). Reparos que funcionaram: trocar
 o LED *N*; fio fino do `DOUT` do *N* ao `DIN` do *N+1*.
 
-**Controladores clones.** Vários sintomas vieram do **controlador**, não da placa:
-- trocar os controladores entre as metades isola se o defeito é do controlador ou da placa;
+**Linha ou coluna morta, ou controlador "morto": confira primeiro a solda na PCB, depois o controlador.**
+Por dias culpei os controladores e depois achei **pinos da base mal soldados na própria PCB**, onde
+o controlador encaixa. Os dois podem estar com defeito (os controladores são clones baratos) e eu
+não consegui separar uma causa da outra, então trate como uma soma de causas.
 - pino com **solda fria / sem escorrer** (ou perna torta) deixa uma **linha ou coluna morta**:
   fileira dos polegares no `pro_micro 9` (P1.06) e coluna `0 P ; /` no `pro_micro 18` (P1.15,
-  etiqueta `115`). Resoldar o pino resolveu;
-- um controlador novo pode não alimentar o OLED nem os LEDs;
+  etiqueta `115`). Resoldar resolveu;
+- trocar o controlador pode parecer a solução porque reassenta os contatos, então isso não prova
+  que o controlador está com defeito (nem que está bom); refaça a solda dos pinos da base primeiro,
+  que é o teste mais barato;
+- um controlador que parece não alimentar o OLED nem os LEDs pode ser solda fraca nos pinos de
+  energia da base, ou um controlador ruim (não medido);
 - cuidado: a etiqueta do pino (`009`) **não** é o número do `pro_micro` (`9`).
 
 **Bateria.** O soquete **CN1** (embaixo do controlador) não passou energia na minha placa.
