@@ -1,0 +1,6 @@
+# Modulo do repositorio: tela de status propria para o OLED do Sofle (LVGL 9)
+if(CONFIG_SOFLE_STATUS_SCREEN)
+  zephyr_library_named(sofle_status_screen)
+  zephyr_library_include_directories(${CMAKE_SOURCE_DIR}/include)
+  zephyr_library_sources(src/status_screen.c)
+endif()

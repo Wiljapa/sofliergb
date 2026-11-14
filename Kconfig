@@ -1,0 +1,13 @@
+config SOFLE_STATUS_SCREEN
+    bool "Tela de status propria do Sofle (OLED em pe, com modificadores)"
+    depends on ZMK_DISPLAY
+    select LV_USE_CANVAS
+    select LV_FONT_UNSCII_8
+
+if SOFLE_STATUS_SCREEN
+
+config SOFLE_STATUS_SCREEN_ROTATE_CW
+    bool "Girar a tela 90 graus no sentido horario (senao, anti-horario)"
+    default y
+
+endif
