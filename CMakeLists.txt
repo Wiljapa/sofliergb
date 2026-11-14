@@ -2,5 +2,7 @@
 if(CONFIG_SOFLE_STATUS_SCREEN)
   zephyr_library_named(sofle_status_screen)
   zephyr_library_include_directories(${CMAKE_SOURCE_DIR}/include)
+  zephyr_library_include_directories(include)
   zephyr_library_sources(src/status_screen.c)
+  zephyr_library_sources(src/status_events.c)
 endif()

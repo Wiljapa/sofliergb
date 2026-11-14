@@ -22,7 +22,7 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include <zmk/events/battery_state_changed.h>
 #include <zmk/usb.h>
 
-#define SOFLE_IS_CENTRAL (!IS_ENABLED(CONFIG_ZMK_SPLIT) || IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL))
+#include <sofle_status.h>
 
 #if !SOFLE_IS_CENTRAL
 #include <zmk/split/bluetooth/peripheral.h>
@@ -68,8 +68,8 @@ struct screen_state {
     bool usb_output;
     int ble_profile;
     bool connected;
-    char layer[5];
 #endif
+    char layer[5];
 };
 
 static void draw_text(lv_layer_t *layer, const char *txt, int x, int y, int w, lv_color_t color) {
@@ -212,13 +212,9 @@ static void render(struct screen_state s) {
     draw_text(&layer, buf, 0, 33, PW, lv_color_white());
     draw_box(&layer, 0, 44, PW, 1, true);
 
-#if SOFLE_IS_CENTRAL
     draw_text(&layer, s.layer, 0, 49, PW, lv_color_white());
     draw_box(&layer, 0, 60, PW, 1, true);
     draw_mods(&layer, s.mods, 65, 16, 13);
-#else
-    draw_mods(&layer, s.mods, 50, 19, 16);
-#endif
 
     lv_canvas_finish_layer(portrait_canvas, &layer);
     rotate_to_landscape();
@@ -229,6 +225,18 @@ static void render(struct screen_state s) {
 /* Posicoes das teclas modificadoras do lado direito no keymap do Sofle (60 posicoes:
  * 0-11, 12-23, 24-35, 36-49 (inclui os 2 botoes de dial), 50-59 polegares). */
 static uint8_t periph_mods;
+static uint8_t remote_layer = 0xFF; /* vem do central pelo relay; 0xFF = ainda desconhecida */
+static uint8_t remote_mods;
+
+static void layer_label(char *out, uint8_t idx) {
+    static const char *const names[] = {"BASE", "LOWE", "RAIS", "ADJU"};
+    if (idx < ARRAY_SIZE(names)) {
+        strcpy(out, names[idx]);
+    } else {
+        snprintf(out, 5, "L%u", idx % 100);
+    }
+}
+
 static void periph_track(const zmk_event_t *eh) {
     const struct zmk_position_state_changed *pev = as_zmk_position_state_changed(eh);
     if (pev == NULL) {
@@ -256,8 +264,18 @@ static struct screen_state get_state(const zmk_event_t *eh) {
 
 #if !SOFLE_IS_CENTRAL
     periph_track(eh);
-    s.mods = periph_mods;
+    const struct sofle_status_changed *sev = as_sofle_status_changed(eh);
+    if (sev != NULL && sev->source != ZMK_RELAY_EVENT_SOURCE_SELF) {
+        remote_layer = sev->layer;
+        remote_mods = sev->mods;
+    }
+    s.mods = periph_mods | remote_mods;
     s.link = zmk_split_bt_peripheral_is_connected();
+    if (remote_layer == 0xFF) {
+        strcpy(s.layer, "----");
+    } else {
+        layer_label(s.layer, remote_layer);
+    }
 #endif
 
 #if SOFLE_IS_CENTRAL
@@ -300,6 +318,7 @@ ZMK_SUBSCRIPTION(sofle_screen, zmk_battery_state_changed);
 #if !SOFLE_IS_CENTRAL
 ZMK_SUBSCRIPTION(sofle_screen, zmk_position_state_changed);
 ZMK_SUBSCRIPTION(sofle_screen, zmk_split_peripheral_status_changed);
+ZMK_SUBSCRIPTION(sofle_screen, sofle_status_changed);
 #if IS_ENABLED(CONFIG_USB_DEVICE_STACK)
 ZMK_SUBSCRIPTION(sofle_screen, zmk_usb_conn_state_changed);
 #endif
