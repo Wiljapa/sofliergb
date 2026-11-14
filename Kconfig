@@ -11,3 +11,11 @@ config SOFLE_STATUS_SCREEN_ROTATE_CW
     default y
 
 endif
+
+config SOFLE_RGB_IDLE
+    bool "Apagar os LEDs ao ficar ocioso e restaurar ao voltar (inclusive depois do sono)"
+    depends on ZMK_RGB_UNDERGLOW
+    default y
+    help
+      Substitui CONFIG_ZMK_RGB_UNDERGLOW_AUTO_OFF_IDLE, que nao restaura os LEDs depois do
+      sono profundo. Use com AUTO_OFF_IDLE=n.
