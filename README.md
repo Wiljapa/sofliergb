@@ -107,6 +107,7 @@ The other folders under `boards/shields/` (`Nice_view_config`, `Sofle_dongle`,
 | change the RGB defaults | `CONFIG_ZMK_RGB_UNDERGLOW_*` in `config/Sofle.conf` |
 | change the Bluetooth name | `CONFIG_ZMK_KEYBOARD_NAME` in `config/Sofle.conf` |
 | change the OLED screen | `src/status_screen.c`; flip `CONFIG_SOFLE_STATUS_SCREEN_ROTATE_CW` if it is upside down |
+| change the OLED animation | press the `&oled_anim` key (ADJUST layer, Tab row, `F`); to add a style, edit `anim_spawn()`, `anim_step()` and `anim_draw()` in `src/status_screen.c` |
 | use another controller wiring | edit the `pro_micro` pins in `boards/shields/Sofle/Sofle_L.overlay` and `Sofle_R.overlay` |
 
 ## Troubleshooting
@@ -177,13 +178,19 @@ LEDs are changed on the **ADJUST** layer (hold **LOWER + RAISE**):
 ```
 Esc row:   [Esc]       Q        W        E         R         T
            EXT_POWER   Hue-     Hue+     Sat-      Sat+      Effect
-Tab row:   [Tab]       A        S        D
-           (none)      Bright-  Bright+  RGB on/off
+Tab row:   [Tab]       A        S        D         F
+           (none)      Bright-  Bright+  RGB on/off  OLED animation
 ```
 
 The firmware starts on effect 3 (a rotating rainbow), where the hue keys have nothing to change.
 **Press `T` once to reach effect 0 (solid color) first**, then use `Q`/`W` for the color.
 Effects: 0 solid, 1 breathing, 2 spectrum, 3 swirl. Settings are saved on each half, so do it on both.
+
+**Idle behavior.** The LEDs turn off when the keyboard is idle and **come back when you use it again,
+even after deep sleep**. ZMK's own `AUTO_OFF_IDLE` does not restore them after deep sleep (the
+keyboard reboots and reads the saved "off"), so it is disabled and replaced by
+[`src/rgb_idle.c`](src/rgb_idle.c), which only restores LEDs that were turned off *by idleness*. If you
+turn them off yourself with `RGB_TOG`, they stay off.
 
 ## Flashing
 
@@ -237,8 +244,17 @@ rotates it 90° for the vertically mounted OLED.
 | Bolt | USB power present | USB power present |
 | Battery | icon with level + `%` | icon with level + `%` |
 | Layer | name (4 letters: `BASE`, `LOWE`, `RAIS`, `ADJU`) | same name, **sent by the left half** (`----` until the first update) |
-| Modifiers | `CTL SFT ALT GUI`, filled box = held | same: its own half's **key positions** plus the modifiers **sent by the left half** |
+| Modifiers | two boxes: `GUI`, and one that shows which of `CTL`, `SFT` or `ALT` is held (`C+S` for two, `CSA` for three, `---` for none); filled box = held | same: its own half's **key positions** plus the modifiers **sent by the left half** |
+| Animation | 32 × 30 px window at the bottom, only while typing | same, reacting to the keys of its own half |
 
+- **Animation.** Every ordinary key press starts it; a 15 fps LVGL timer advances the frames and
+  **pauses itself** when nothing is alive, so an idle keyboard spends nothing. Styles: **Equalizer**
+  (default; a random bar jumps up and decays), **Ring** (an expanding circle) and **Star** (an
+  8-ray star that opens and closes), plus **None**. The key `&oled_anim` on the **ADJUST layer**
+  (Tab row, the `F` position) cycles Equalizer → Ring → Star → None and shows the new style once.
+  The choice is saved on the keyboard (`sofle_anim/style`) and relayed to the right half. The
+  behavior lives in [`src/behavior_oled_anim.c`](src/behavior_oled_anim.c); the drawing is in
+  `src/status_screen.c`.
 - **Layer and modifiers on the right half** travel from the central through ZMK's relay events
   (`CONFIG_ZMK_SPLIT_RELAY_EVENT`, in both `Sofle_L.conf` and `Sofle_R.conf`, with the same
   `DATA_LEN`). [`src/status_events.c`](src/status_events.c) defines the `sofle_status_changed` event
@@ -349,7 +365,7 @@ Moving from ZMK v0.3 to the `main+dya` fork broke these things; here is how each
 
 ## Known limitations
 
-- No `nice_oled` animations (cat, vim). The custom screen shows only the essentials.
+- Three simple animation styles; no sprite-based pet like `nice_oled`'s cat.
 - Layer name is 4 letters on the screen.
 - The right half lights its own modifier keys at once, by physical position, and then follows the
   state relayed by the central; a modifier made by a `&mt` or similar on that half only shows

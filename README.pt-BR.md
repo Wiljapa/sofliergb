@@ -108,6 +108,7 @@ As outras pastas de `boards/shields/` (`Nice_view_config`, `Sofle_dongle`,
 | mudar o padrão do RGB | `CONFIG_ZMK_RGB_UNDERGLOW_*` em `config/Sofle.conf` |
 | mudar o nome do Bluetooth | `CONFIG_ZMK_KEYBOARD_NAME` em `config/Sofle.conf` |
 | mudar a tela do OLED | `src/status_screen.c`; inverta `CONFIG_SOFLE_STATUS_SCREEN_ROTATE_CW` se estiver de cabeça para baixo |
+| mudar a animação do OLED | aperte a tecla `&oled_anim` (camada AJUSTE, fileira da Tab, `F`); para criar um estilo, edite `anim_spawn()`, `anim_step()` e `anim_draw()` em `src/status_screen.c` |
 | usar outra ligação do controlador | edite os pinos `pro_micro` em `boards/shields/Sofle/Sofle_L.overlay` e `Sofle_R.overlay` |
 
 ## Solução de problemas
@@ -178,14 +179,20 @@ As cores mudam na camada **AJUSTE** (segure **LOWER + RAISE**):
 ```
 Fileira da Esc:  [Esc]       Q        W        E         R         T
                  EXT_POWER   Matiz-   Matiz+   Satur.-   Satur.+   Efeito
-Fileira da Tab:  [Tab]       A        S        D
-                 (nada)      Brilho-  Brilho+  Liga/desliga RGB
+Fileira da Tab:  [Tab]       A        S        D                F
+                 (nada)      Brilho-  Brilho+  Liga/desliga RGB  Animação do OLED
 ```
 
 O firmware começa no efeito 3 (arco-íris girando), em que as teclas de matiz não têm o que mudar.
 **Aperte `T` uma vez para ir ao efeito 0 (cor fixa)** e use `Q`/`W` para escolher a cor.
 Efeitos: 0 cor fixa, 1 respirando, 2 espectro, 3 arco-íris. Os ajustes ficam salvos em cada
 metade, então faça nas duas.
+
+**Ociosidade.** Os LEDs apagam quando o teclado fica ocioso e **voltam quando você o usa de novo,
+mesmo depois do sono profundo**. O `AUTO_OFF_IDLE` do próprio ZMK não os restaura depois do sono
+profundo (o teclado reinicia e lê o "desligado" gravado), então ele está desligado e substituído
+pelo [`src/rgb_idle.c`](src/rgb_idle.c), que só restaura os LEDs apagados *por ociosidade*. Se você os
+apagar com o `RGB_TOG`, eles continuam apagados.
 
 ## Gravar o firmware
 
@@ -237,8 +244,17 @@ gira 90° para o OLED montado em pé.
 | Raio | USB ligado | USB ligado |
 | Bateria | ícone com nível + `%` | ícone com nível + `%` |
 | Camada | nome (4 letras: `BASE`, `LOWE`, `RAIS`, `ADJU`) | o mesmo nome, **enviado pela metade esquerda** (`----` até a primeira atualização) |
-| Modificadores | `CTL SFT ALT GUI`, caixa cheia = apertado | idem: as **posições das teclas** do próprio lado mais os modificadores **enviados pela metade esquerda** |
+| Modificadores | duas caixas: `GUI`, e uma que mostra qual entre `CTL`, `SFT` ou `ALT` está apertado (`C+S` para duas, `CSA` para três, `---` para nenhuma); caixa cheia = apertado | idem: as **posições das teclas** do próprio lado mais os modificadores **enviados pela metade esquerda** |
+| Animação | janela de 32 × 30 px embaixo, só enquanto digita | idem, reagindo às teclas do próprio lado |
 
+- **Animação.** Cada tecla comum a dispara; um temporizador do LVGL a 15 quadros por segundo
+  avança os quadros e **pausa sozinho** quando nada está vivo, então o teclado parado não gasta
+  nada. Estilos: **Equalizador** (o padrão; uma barra aleatória sobe e decai), **Anel** (um
+  círculo que cresce) e **Estrela** (uma estrela de 8 raios que abre e fecha), mais **Nenhuma**. A
+  tecla `&oled_anim` na **camada AJUSTE** (fileira da Tab, na posição do `F`) passa por
+  Equalizador → Anel → Estrela → Nenhuma e mostra o estilo novo uma vez. A escolha fica salva no
+  teclado (`sofle_anim/style`) e é repassada ao lado direito. O comportamento está em
+  [`src/behavior_oled_anim.c`](src/behavior_oled_anim.c); o desenho, em `src/status_screen.c`.
 - **Camada e modificadores no lado direito** viajam do central pelos eventos de relay do ZMK
   (`CONFIG_ZMK_SPLIT_RELAY_EVENT`, em `Sofle_L.conf` e `Sofle_R.conf`, com o mesmo `DATA_LEN`).
   O [`src/status_events.c`](src/status_events.c) define o evento `sofle_status_changed` e o repassa;
@@ -347,7 +363,7 @@ Ao migrar do ZMK v0.3 para o fork `main+dya`, estas coisas quebraram e foram cor
 
 ## Limitações conhecidas
 
-- Sem as animações do `nice_oled` (gato, vim). A tela própria mostra só o essencial.
+- Três estilos simples de animação; não há um bichinho em sprites como o gato do `nice_oled`.
 - Nome da camada com 4 letras na tela.
 - O lado direito acende na hora as próprias teclas modificadoras, pela posição física, e depois
   segue o estado repassado pelo central; um modificador feito por `&mt` ou similar nessa metade só
