@@ -13,6 +13,7 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include <stdio.h>
 #include <string.h>
 #include <lvgl.h>
+#include "draw/lv_draw_triangle.h"
 
 #include <zmk/display.h>
 #include <zmk/display/status_screen.h>
@@ -22,6 +23,13 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include <zmk/usb.h>
 
 #define SOFLE_IS_CENTRAL (!IS_ENABLED(CONFIG_ZMK_SPLIT) || IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL))
+
+#if !SOFLE_IS_CENTRAL
+#include <zmk/split/bluetooth/peripheral.h>
+#include <zmk/events/position_state_changed.h>
+#include <zmk/events/split_peripheral_status_changed.h>
+#include <zmk/events/usb_conn_state_changed.h>
+#endif
 
 #if SOFLE_IS_CENTRAL
 #include <dt-bindings/zmk/hid_usage_pages.h>
@@ -52,12 +60,15 @@ static lv_obj_t *landscape_canvas;
 struct screen_state {
     uint8_t battery;
     bool usb_powered;
+    uint8_t mods; /* bits HID: 0 LCTRL 1 LSHIFT 2 LALT 3 LGUI 4 RCTRL 5 RSHIFT 6 RALT 7 RGUI */
+#if !SOFLE_IS_CENTRAL
+    bool link; /* ligado ao esquerdo */
+#endif
 #if SOFLE_IS_CENTRAL
     bool usb_output;
     int ble_profile;
     bool connected;
     char layer[5];
-    uint8_t mods; /* bits HID: 0 LCTRL 1 LSHIFT 2 LALT 3 LGUI 4 RCTRL 5 RSHIFT 6 RALT 7 RGUI */
 #endif
 };
 
@@ -73,7 +84,7 @@ static void draw_text(lv_layer_t *layer, const char *txt, int x, int y, int w, l
     lv_draw_label(layer, &d, &a);
 }
 
-static void __maybe_unused draw_box(lv_layer_t *layer, int x, int y, int w, int h, bool filled) {
+static void draw_box(lv_layer_t *layer, int x, int y, int w, int h, bool filled) {
     lv_draw_rect_dsc_t r;
     lv_draw_rect_dsc_init(&r);
     r.radius = 2;
@@ -104,6 +115,72 @@ static void rotate_to_landscape(void) {
     }
 }
 
+static void draw_line(lv_layer_t *layer, int x1, int y1, int x2, int y2) {
+    lv_draw_line_dsc_t d;
+    lv_draw_line_dsc_init(&d);
+    d.p1.x = x1;
+    d.p1.y = y1;
+    d.p2.x = x2;
+    d.p2.y = y2;
+    d.color = lv_color_white();
+    d.width = 1;
+    d.opa = LV_OPA_COVER;
+    lv_draw_line(layer, &d);
+}
+
+static void draw_tri(lv_layer_t *layer, int x1, int y1, int x2, int y2, int x3, int y3) {
+    lv_draw_triangle_dsc_t t;
+    lv_draw_triangle_dsc_init(&t);
+    t.p[0].x = x1;
+    t.p[0].y = y1;
+    t.p[1].x = x2;
+    t.p[1].y = y2;
+    t.p[2].x = x3;
+    t.p[2].y = y3;
+    t.bg_color = lv_color_white();
+    t.bg_opa = LV_OPA_COVER;
+    lv_draw_triangle(layer, &t);
+}
+
+/* Runa do Bluetooth, caixa de 9 x 15 px. */
+static void draw_bt_icon(lv_layer_t *layer, int x, int y) {
+    draw_line(layer, x + 0, y + 4, x + 8, y + 10);
+    draw_line(layer, x + 8, y + 10, x + 4, y + 14);
+    draw_line(layer, x + 4, y + 14, x + 4, y + 0);
+    draw_line(layer, x + 4, y + 0, x + 8, y + 4);
+    draw_line(layer, x + 8, y + 4, x + 0, y + 10);
+}
+
+/* Raio (carregando), caixa de 8 x 15 px. */
+static void draw_bolt_icon(lv_layer_t *layer, int x, int y) {
+    draw_tri(layer, x + 6, y + 0, x + 1, y + 8, x + 5, y + 8);
+    draw_tri(layer, x + 3, y + 7, x + 7, y + 7, x + 2, y + 15);
+}
+
+/* Bateria 26 x 11 px com o nivel preenchido. */
+static void draw_battery_icon(lv_layer_t *layer, int x, int y, uint8_t level) {
+    draw_box(layer, x, y, 24, 11, false);
+    draw_box(layer, x + 24, y + 3, 2, 5, true); /* ponta */
+    int fill = (20 * (level > 100 ? 100 : level)) / 100;
+    if (fill > 0) {
+        draw_box(layer, x + 2, y + 2, fill, 7, true);
+    }
+}
+
+static void draw_mods(lv_layer_t *layer, uint8_t mask_state, int y0, int step, int h) {
+    static const struct {
+        const char *name;
+        uint8_t mask;
+    } mods[] = {{"CTL", 0x11}, {"SFT", 0x22}, {"ALT", 0x44}, {"GUI", 0x88}};
+    for (int i = 0; i < 4; i++) {
+        bool on = (mask_state & mods[i].mask) != 0;
+        int y = y0 + i * step;
+        draw_box(layer, 1, y, PW - 2, h, on);
+        draw_text(layer, mods[i].name, 1, y + (h - 8) / 2, PW - 2,
+                  on ? lv_color_black() : lv_color_white());
+    }
+}
+
 static void render(struct screen_state s) {
     lv_canvas_fill_bg(portrait_canvas, lv_color_black(), LV_OPA_COVER);
 
@@ -111,46 +188,63 @@ static void render(struct screen_state s) {
     lv_canvas_init_layer(portrait_canvas, &layer);
     char buf[8];
 
+    /* Linha 1: conexao */
 #if SOFLE_IS_CENTRAL
-    /* Saida: USB ou BTn (+ '*' se conectado) */
     if (s.usb_output) {
-        snprintf(buf, sizeof(buf), "USB");
+        draw_text(&layer, "USB", 0, 5, 24, lv_color_white());
     } else {
-        snprintf(buf, sizeof(buf), "BT%u%c", (unsigned)((s.ble_profile + 1) % 10), s.connected ? '*' : '-');
+        draw_bt_icon(&layer, 1, 1);
+        snprintf(buf, sizeof(buf), "%u%c", (unsigned)((s.ble_profile + 1) % 10),
+                 s.connected ? '*' : '-');
+        draw_text(&layer, buf, 11, 5, 16, lv_color_white());
     }
-    draw_text(&layer, buf, 0, 2, PW, lv_color_white());
 #else
-    draw_text(&layer, "RIGHT", 0, 2, PW, lv_color_white());
+    draw_bt_icon(&layer, 1, 1);
+    draw_text(&layer, s.link ? "OK" : "--", 11, 5, 16, lv_color_white());
 #endif
+    if (s.usb_powered) {
+        draw_bolt_icon(&layer, 23, 1);
+    }
 
-    /* Bateria (com 'c' se o USB estiver ligado) */
-    snprintf(buf, sizeof(buf), "%s%u%%", s.usb_powered ? "+" : "", s.battery);
-    draw_text(&layer, buf, 0, 14, PW, lv_color_white());
+    /* Linha 2: bateria (icone + porcentagem) */
+    draw_battery_icon(&layer, 2, 19, s.battery);
+    snprintf(buf, sizeof(buf), "%u%%", s.battery);
+    draw_text(&layer, buf, 0, 33, PW, lv_color_white());
+    draw_box(&layer, 0, 44, PW, 1, true);
 
 #if SOFLE_IS_CENTRAL
-    /* Linha + camada */
-    draw_box(&layer, 0, 28, PW, 1, true);
-    draw_text(&layer, s.layer, 0, 34, PW, lv_color_white());
-    draw_box(&layer, 0, 46, PW, 1, true);
-
-    /* Modificadores: 4 caixas, cheia = ativo */
-    static const struct {
-        const char *name;
-        uint8_t mask;
-    } mods[] = {{"CTL", 0x11}, {"SFT", 0x22}, {"ALT", 0x44}, {"GUI", 0x88}};
-    for (int i = 0; i < 4; i++) {
-        bool on = (s.mods & mods[i].mask) != 0;
-        int y = 54 + i * 18;
-        draw_box(&layer, 1, y, PW - 2, 14, on);
-        draw_text(&layer, mods[i].name, 1, y + 3, PW - 2,
-                  on ? lv_color_black() : lv_color_white());
-    }
+    draw_text(&layer, s.layer, 0, 49, PW, lv_color_white());
+    draw_box(&layer, 0, 60, PW, 1, true);
+    draw_mods(&layer, s.mods, 65, 16, 13);
+#else
+    draw_mods(&layer, s.mods, 50, 19, 16);
 #endif
 
     lv_canvas_finish_layer(portrait_canvas, &layer);
     rotate_to_landscape();
     lv_obj_invalidate(landscape_canvas);
 }
+
+#if !SOFLE_IS_CENTRAL
+/* Posicoes das teclas modificadoras do lado direito no keymap do Sofle (60 posicoes:
+ * 0-11, 12-23, 24-35, 36-49 (inclui os 2 botoes de dial), 50-59 polegares). */
+static uint8_t periph_mods;
+static void periph_track(const zmk_event_t *eh) {
+    const struct zmk_position_state_changed *pev = as_zmk_position_state_changed(eh);
+    if (pev == NULL) {
+        return;
+    }
+    uint8_t bit = 0;
+    switch (pev->position) {
+    case 49: bit = 0x20; break; /* RSHIFT */
+    case 57: bit = 0x10; break; /* RCTRL  */
+    case 58: bit = 0x40; break; /* RALT   */
+    case 59: bit = 0x80; break; /* RGUI   */
+    default: return;
+    }
+    periph_mods = pev->state ? (periph_mods | bit) : (periph_mods & ~bit);
+}
+#endif
 
 static struct screen_state get_state(const zmk_event_t *eh) {
     struct screen_state s = {
@@ -159,6 +253,12 @@ static struct screen_state get_state(const zmk_event_t *eh) {
         .usb_powered = zmk_usb_is_powered(),
 #endif
     };
+
+#if !SOFLE_IS_CENTRAL
+    periph_track(eh);
+    s.mods = periph_mods;
+    s.link = zmk_split_bt_peripheral_is_connected();
+#endif
 
 #if SOFLE_IS_CENTRAL
     struct zmk_endpoint_instance ep = zmk_endpoint_get_selected();
@@ -197,6 +297,13 @@ static void update_cb(struct screen_state s) {
 ZMK_DISPLAY_WIDGET_LISTENER(sofle_screen, struct screen_state, update_cb, get_state)
 
 ZMK_SUBSCRIPTION(sofle_screen, zmk_battery_state_changed);
+#if !SOFLE_IS_CENTRAL
+ZMK_SUBSCRIPTION(sofle_screen, zmk_position_state_changed);
+ZMK_SUBSCRIPTION(sofle_screen, zmk_split_peripheral_status_changed);
+#if IS_ENABLED(CONFIG_USB_DEVICE_STACK)
+ZMK_SUBSCRIPTION(sofle_screen, zmk_usb_conn_state_changed);
+#endif
+#endif
 #if SOFLE_IS_CENTRAL
 ZMK_SUBSCRIPTION(sofle_screen, zmk_layer_state_changed);
 ZMK_SUBSCRIPTION(sofle_screen, zmk_keycode_state_changed);
