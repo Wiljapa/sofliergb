@@ -243,4 +243,6 @@ Ao migrar do ZMK v0.3 para o fork `main+dya`, estas coisas quebraram e foram cor
   [DYA Studio](https://github.com/cormoran/dya-studio).
 - Shield do Sofle: Ryan Cross e colaboradores do ZMK; ajustes para a placa e guia de montagem da
   [PandaKB](https://pandakb.com/guides/sofle-rgb-mx-build-guide).
-- Conferir as licenças de cada projeto de origem antes de reutilizar o código.
+- Este repositório usa a [Licença MIT](LICENSE). Arquivos vindos de projetos de origem (como o
+  shield do Sofle em `boards/shields/Sofle`) mantêm os próprios cabeçalhos; confira a licença de
+  cada projeto antes de reutilizar o código.

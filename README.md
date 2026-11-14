@@ -250,4 +250,6 @@ Moving from ZMK v0.3 to the `main+dya` fork broke these things; here is how each
   [DYA Studio](https://github.com/cormoran/dya-studio) modules.
 - Sofle shield: Ryan Cross and ZMK contributors; board adjustments and build guide from
   [PandaKB](https://pandakb.com/guides/sofle-rgb-mx-build-guide).
-- Check each upstream project's license before reusing its code.
+- This repository is released under the [MIT License](LICENSE). Files that came from
+  upstream projects (such as the Sofle shield under `boards/shields/Sofle`) keep their own
+  headers; check each upstream project's license before reusing its code.
