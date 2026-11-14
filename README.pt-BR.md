@@ -21,6 +21,10 @@ O que este repositório tem de diferente de um `zmk-config` comum:
 
 ## Sumário
 
+- [Início rápido](#início-rápido)
+- [Como funciona](#como-funciona)
+- [Personalizar](#personalizar)
+- [Solução de problemas](#solução-de-problemas)
 - [Hardware](#hardware)
 - [Branches](#branches)
 - [Camadas do keymap](#camadas-do-keymap)
@@ -32,6 +36,92 @@ O que este repositório tem de diferente de um `zmk-config` comum:
 - [Notas sobre o Zephyr 4.1](#notas-sobre-o-zephyr-41)
 - [Limitações conhecidas](#limitações-conhecidas)
 - [Créditos](#créditos)
+
+## Início rápido
+
+Mesmo teclado que o meu (PandaKB Sofle RGB MX com controladores nRF52840)?
+
+1. **Pegue o firmware.** No GitHub abra *Actions*, escolha a última execução verde do branch
+   `dya-tela` e baixe o artefato `firmware`. Ele tem três arquivos: `settings_reset_dya.uf2`,
+   `Sofle_left_oled_dya.uf2` e `Sofle_right_oled_dya.uf2`.
+2. **Grave as duas metades** seguindo [Gravar o firmware](#gravar-o-firmware) (sempre
+   `settings_reset` primeiro).
+3. **Pareie** o teclado com o computador por Bluetooth, ou ligue o esquerdo por USB.
+4. **Personalize** ao vivo em <https://studio.dya.cormoran.works/> (veja [DYA Studio](#dya-studio)).
+
+Outro hardware? Leia antes [Como funciona](#como-funciona) e [Personalizar](#personalizar): o
+mapa de pinos fica nos arquivos do shield e precisará de ajuste.
+
+## Como funciona
+
+```
+ computador ⇄ USB ou Bluetooth ⇄ metade ESQUERDA (central) ⇄ Bluetooth ⇄ metade DIREITA (periférico)
+                                  │  keymap, camadas, macros, combos, DYA Studio
+```
+
+- Cada metade lê as próprias teclas. A **metade direita só informa as posições das teclas** por
+  Bluetooth.
+- A **metade esquerda decide o que cada tecla significa** (camadas, mod-taps, macros) e envia o
+  resultado ao computador como um teclado comum.
+- Consequências: só a esquerda conecta no computador e no DYA Studio; a direita não funciona como
+  teclado sozinha; o OLED direito não sabe qual é a camada ativa.
+- Edições do keymap feitas no DYA Studio **ficam gravadas no teclado**, não neste repositório. O
+  arquivo `.keymap` é só o ponto de partida depois de um `settings_reset`.
+
+### Mapa do repositório
+
+| Caminho | O que é |
+|---|---|
+| `config/Sofle.keymap` | camadas, teclas e comportamento dos dials (o que você mais edita) |
+| `config/Sofle.conf` | ajustes das duas metades: Bluetooth, sono, RGB, memória do display |
+| `config/west.yml` | quais ZMK, Zephyr e módulos DYA são baixados |
+| `build.yaml` | quais firmwares o CI compila (esquerdo, direito, `settings_reset`) |
+| `boards/shields/Sofle/` | o shield: pinos (`*.overlay`), OLED e LEDs (`Sofle.dtsi`), opções por metade (`Sofle_L.conf`, `Sofle_R.conf`) |
+| `src/status_screen.c`, `Kconfig`, `CMakeLists.txt`, `zephyr/module.yml` | a tela própria do OLED, empacotada como módulo do Zephyr |
+| `.github/workflows/build.yml` | o build do CI |
+
+As outras pastas de `boards/shields/` (`Nice_view_config`, `Sofle_dongle`,
+`eyeslash_dongle_config`) sobraram do modelo de onde este repositório partiu e não são usadas.
+
+### Glossário
+
+| Termo | Significado |
+|---|---|
+| **ZMK** | firmware livre para teclados sem fio, feito sobre o Zephyr |
+| **Zephyr** | o sistema operacional de tempo real em que o ZMK roda |
+| **central / periférico** | a metade que fala com o computador / a que só informa teclas |
+| **shield** | a descrição de uma placa de teclado no ZMK (pinos, matriz, display, LEDs) |
+| **`west`** | ferramenta do Zephyr que baixa as fontes listadas no `west.yml` |
+| **UF2** | arquivo de firmware que você copia no disco USB do controlador |
+| **`settings_reset`** | um firmware mínimo que apaga pareamentos e ajustes salvos |
+| **DYA Studio** | aplicativo no navegador para editar keymap, macros, combos e dials ao vivo |
+| **LVGL** | a biblioteca gráfica usada na tela do OLED |
+
+## Personalizar
+
+| Quero… | Faça isto |
+|---|---|
+| trocar uma tecla por enquanto | DYA Studio → Keymap (fica gravado no teclado) |
+| trocar uma tecla de vez | edite `config/Sofle.keymap`, suba, grave o novo build (depois `settings_reset`) |
+| mudar o que o dial faz | DYA Studio → *Rotary Encoder Configuration*, ou edite `rsr_vol` / `rsr_pg` no keymap |
+| mudar o tempo de ociosidade e sono | `CONFIG_ZMK_IDLE_TIMEOUT` (600000 ms) e `CONFIG_ZMK_IDLE_SLEEP_TIMEOUT` (900000 ms) em `config/Sofle.conf` |
+| mudar o padrão do RGB | `CONFIG_ZMK_RGB_UNDERGLOW_*` em `config/Sofle.conf` |
+| mudar o nome do Bluetooth | `CONFIG_ZMK_KEYBOARD_NAME` em `config/Sofle.conf` |
+| mudar a tela do OLED | `src/status_screen.c`; inverta `CONFIG_SOFLE_STATUS_SCREEN_ROTATE_CW` se estiver de cabeça para baixo |
+| usar outra ligação do controlador | edite os pinos `pro_micro` em `boards/shields/Sofle/Sofle_L.overlay` e `Sofle_R.overlay` |
+
+## Solução de problemas
+
+| Sintoma | Causa provável e correção |
+|---|---|
+| A metade direita não digita | Ela é periférico: veja se o OLED direito mostra `OK` ao lado do ícone de Bluetooth. Rode `settings_reset` nas **duas** metades, regrave, pareie o computador de novo e espere alguns minutos |
+| O computador diz "Conectado" mas nada digita | chaves velhas depois de um reset: remova o teclado do Bluetooth e pareie de novo |
+| LEDs e OLED apagados juntos | o `ext_power` foi desligado (camada ADJUST). Aperte a tecla de novo, ou regrave |
+| Só o OLED apagado | os 4 jumpers do OLED estão na face errada, ou um fio do display soltou (veja [Armadilhas de hardware](#armadilhas-de-hardware)) |
+| A tela pisca e fica com chuvisco | o LVGL ficou sem memória e o teclado reinicia: mantenha os dois ajustes de memória de [Tela do OLED](#tela-do-oled) |
+| Caps Lock travado | segure RAISE e aperte G |
+| O DYA Studio não conecta | use um navegador Chromium por USB, com cabo de dados direto no computador (sem hub) |
+| Uma coluna ou linha morta | solda fria no pino do controlador; resolde |
 
 ## Hardware
 

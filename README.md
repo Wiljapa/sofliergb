@@ -22,6 +22,10 @@ What this repository does differently from a plain `zmk-config`:
 
 ## Contents
 
+- [Quick start](#quick-start)
+- [How it works](#how-it-works)
+- [Customizing](#customizing)
+- [Troubleshooting](#troubleshooting)
 - [Hardware](#hardware)
 - [Branches](#branches)
 - [Keymap layers](#keymap-layers)
@@ -33,6 +37,90 @@ What this repository does differently from a plain `zmk-config`:
 - [Zephyr 4.1 migration notes](#zephyr-41-migration-notes)
 - [Known limitations](#known-limitations)
 - [Credits](#credits)
+
+## Quick start
+
+Same keyboard as mine (PandaKB Sofle RGB MX with nRF52840 controllers)?
+
+1. **Get the firmware.** On GitHub open *Actions*, pick the latest green run of the `dya-tela`
+   branch and download the `firmware` artifact. It holds three files: `settings_reset_dya.uf2`,
+   `Sofle_left_oled_dya.uf2` and `Sofle_right_oled_dya.uf2`.
+2. **Flash both halves** following [Flashing](#flashing) (always `settings_reset` first).
+3. **Pair** the keyboard with your computer over Bluetooth, or just plug the left half in by USB.
+4. **Customize** it live at <https://studio.dya.cormoran.works/> (see [DYA Studio](#dya-studio)).
+
+Different hardware? Read [How it works](#how-it-works) and [Customizing](#customizing) first: the
+pin mapping lives in the shield files and will need adjusting.
+
+## How it works
+
+```
+ computer ⇄ USB or Bluetooth ⇄ LEFT half (central) ⇄ Bluetooth ⇄ RIGHT half (peripheral)
+                                  │  keymap, layers, macros, combos, DYA Studio
+```
+
+- Each half scans its own keys. The **right half only reports key positions** over Bluetooth.
+- The **left half decides what every key means** (layers, mod-taps, macros) and sends the result
+  to the computer as a normal keyboard.
+- Consequences: only the left half connects to the computer and to DYA Studio; the right half
+  cannot be used as a standalone keyboard; the right OLED does not know the active layer.
+- Keymap edits made in DYA Studio are **stored on the keyboard**, not in this repository. The
+  `.keymap` file is only the starting point after a `settings_reset`.
+
+### Repository map
+
+| Path | What it is |
+|---|---|
+| `config/Sofle.keymap` | layers, key bindings and dial behaviors (the part you edit most) |
+| `config/Sofle.conf` | settings for both halves: Bluetooth, sleep, RGB defaults, display memory |
+| `config/west.yml` | which ZMK, Zephyr and DYA modules get downloaded |
+| `build.yaml` | which firmwares CI builds (left, right, `settings_reset`) |
+| `boards/shields/Sofle/` | the shield: pins (`*.overlay`), OLED and LEDs (`Sofle.dtsi`), per-half options (`Sofle_L.conf`, `Sofle_R.conf`) |
+| `src/status_screen.c`, `Kconfig`, `CMakeLists.txt`, `zephyr/module.yml` | the custom OLED screen, packaged as a Zephyr module |
+| `.github/workflows/build.yml` | the CI build |
+
+The other folders under `boards/shields/` (`Nice_view_config`, `Sofle_dongle`,
+`eyeslash_dongle_config`) are leftovers from the template this repo started from and are not used.
+
+### Glossary
+
+| Term | Meaning |
+|---|---|
+| **ZMK** | open-source firmware for wireless keyboards, built on Zephyr |
+| **Zephyr** | the real-time operating system ZMK runs on |
+| **central / peripheral** | the half that talks to the computer / the half that only reports keys |
+| **shield** | ZMK's description of a keyboard PCB (pins, matrix, display, LEDs) |
+| **`west`** | Zephyr's tool that downloads the sources listed in `west.yml` |
+| **UF2** | firmware file you copy onto the controller's USB disk |
+| **`settings_reset`** | a tiny firmware that erases pairings and saved settings |
+| **DYA Studio** | browser app to edit the keymap, macros, combos and dials live |
+| **LVGL** | the graphics library used for the OLED screen |
+
+## Customizing
+
+| I want to… | Do this |
+|---|---|
+| change a key for now | DYA Studio → Keymap (stored on the keyboard) |
+| change a key for good | edit `config/Sofle.keymap`, push, flash the new build (then `settings_reset`) |
+| change what a dial does | DYA Studio → *Rotary Encoder Configuration*, or edit `rsr_vol` / `rsr_pg` in the keymap |
+| change idle and sleep times | `CONFIG_ZMK_IDLE_TIMEOUT` (600000 ms) and `CONFIG_ZMK_IDLE_SLEEP_TIMEOUT` (900000 ms) in `config/Sofle.conf` |
+| change the RGB defaults | `CONFIG_ZMK_RGB_UNDERGLOW_*` in `config/Sofle.conf` |
+| change the Bluetooth name | `CONFIG_ZMK_KEYBOARD_NAME` in `config/Sofle.conf` |
+| change the OLED screen | `src/status_screen.c`; flip `CONFIG_SOFLE_STATUS_SCREEN_ROTATE_CW` if it is upside down |
+| use another controller wiring | edit the `pro_micro` pins in `boards/shields/Sofle/Sofle_L.overlay` and `Sofle_R.overlay` |
+
+## Troubleshooting
+
+| Symptom | Likely cause and fix |
+|---|---|
+| The right half does not type | It is a peripheral: check the right OLED says `OK` next to the Bluetooth icon. Run `settings_reset` on **both** halves, reflash, re-pair the computer, and wait a few minutes |
+| Computer says "Connected" but nothing types | stale keys after a reset: remove the keyboard from Bluetooth and pair again |
+| LEDs and OLED are both dark | `ext_power` was toggled off (ADJUST layer). Press that key again, or reflash |
+| OLED alone is dark | the 4 OLED jumpers are on the wrong face, or a display wire is loose (see [Hardware pitfalls](#hardware-pitfalls)) |
+| Screen blinks and shows static | LVGL ran out of memory and the keyboard is rebooting: keep the two memory settings from [OLED screen](#oled-screen) |
+| Caps Lock stuck on | hold RAISE and press G |
+| DYA Studio will not connect | use a Chromium browser over USB, with a data cable straight into the computer (no hub) |
+| One column or row is dead | cold solder joint on the controller pin; re-solder it |
 
 ## Hardware
 
